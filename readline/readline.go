@@ -1,13 +1,23 @@
+// Package readline - Hauptmodul für interaktive Zeileneingabe
+//
+// Dieses Paket implementiert eine readline-ähnliche Funktionalität mit
+// Unterstützung für History, Multiline-Eingabe und Terminal-Raw-Mode.
+//
+// Hauptkomponenten:
+// - Prompt: Konfiguration für Eingabeaufforderungen
+// - Instance: Hauptinstanz für readline-Operationen
+// - New: Konstruktor für neue Readline-Instanzen
+// - Readline: Hauptmethode zum Lesen einer Zeile
+
 package readline
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
+// Prompt definiert die Eingabeaufforderungs-Konfiguration
 type Prompt struct {
 	Prompt         string
 	AltPrompt      string
@@ -16,6 +26,7 @@ type Prompt struct {
 	UseAlt         bool
 }
 
+// prompt gibt den aktuellen Prompt-String zurück
 func (p *Prompt) prompt() string {
 	if p.UseAlt {
 		return p.AltPrompt
@@ -23,6 +34,7 @@ func (p *Prompt) prompt() string {
 	return p.Prompt
 }
 
+// placeholder gibt den aktuellen Placeholder-String zurück
 func (p *Prompt) placeholder() string {
 	if p.UseAlt {
 		return p.AltPlaceholder
@@ -30,12 +42,7 @@ func (p *Prompt) placeholder() string {
 	return p.Placeholder
 }
 
-type Terminal struct {
-	reader  *bufio.Reader
-	rawmode bool
-	termios any
-}
-
+// Instance ist die Hauptstruktur für readline-Operationen
 type Instance struct {
 	Prompt      *Prompt
 	Terminal    *Terminal
@@ -44,6 +51,7 @@ type Instance struct {
 	pastedLines []string
 }
 
+// New erstellt eine neue Readline-Instanz mit dem angegebenen Prompt
 func New(prompt Prompt) (*Instance, error) {
 	term, err := NewTerminal()
 	if err != nil {
@@ -62,6 +70,8 @@ func New(prompt Prompt) (*Instance, error) {
 	}, nil
 }
 
+// Readline liest eine Zeile vom Terminal mit Unterstützung für
+// History-Navigation, Cursor-Bewegung und Multiline-Eingabe
 func (i *Instance) Readline() (string, error) {
 	if !i.Terminal.rawmode {
 		fd := os.Stdin.Fd()
@@ -75,7 +85,7 @@ func (i *Instance) Readline() (string, error) {
 
 	prompt := i.Prompt.prompt()
 	if i.Pasting {
-		// force alt prompt when pasting
+		// Bei Paste immer Alt-Prompt verwenden
 		prompt = i.Prompt.AltPrompt
 	}
 	fmt.Print(prompt)
@@ -92,25 +102,21 @@ func (i *Instance) Readline() (string, error) {
 	var esc bool
 	var escex bool
 	var metaDel bool
-
 	var currentLineBuf []rune
 
-	// draining tracks if we're processing buffered input from cooked mode.
-	// In cooked mode Enter sends \n, but in raw mode Ctrl+J sends \n.
-	// We treat \n from cooked mode as submit, not multiline.
-	// We check Buffered() after the first read since the bufio buffer is
-	// empty until then. This is compatible with """ multiline mode in
-	// interactive.go since each Readline() call is independent.
+	// draining verfolgt ob wir gepufferten Input aus dem Cooked-Mode verarbeiten.
+	// Im Cooked-Mode sendet Enter \n, aber im Raw-Mode sendet Ctrl+J \n.
+	// Wir behandeln \n aus dem Cooked-Mode als Submit, nicht als Multiline.
 	var draining, stopDraining bool
 
 	for {
-		// Apply deferred state change from previous iteration
+		// Verzögerte Zustandsänderung aus vorheriger Iteration anwenden
 		if stopDraining {
 			draining = false
 			stopDraining = false
 		}
 
-		// don't show placeholder when pasting unless we're in multiline mode
+		// Placeholder nur anzeigen wenn nicht im Paste-Modus (außer bei Multiline)
 		showPlaceholder := !i.Pasting || i.Prompt.UseAlt
 		if buf.IsEmpty() && showPlaceholder {
 			ph := i.Prompt.placeholder()
@@ -119,9 +125,7 @@ func (i *Instance) Readline() (string, error) {
 
 		r, err := i.Terminal.Read()
 
-		// After reading, check if there's more buffered data. If so, we're
-		// processing cooked-mode input. Once buffer empties, the current
-		// char is the last buffered one (still drain it), then stop next iteration.
+		// Nach dem Lesen prüfen ob mehr gepufferte Daten vorhanden sind
 		if i.Terminal.reader.Buffered() > 0 {
 			draining = true
 		} else if draining {
@@ -136,173 +140,40 @@ func (i *Instance) Readline() (string, error) {
 			return "", io.EOF
 		}
 
+		// Escape-Ex-Sequenzen verarbeiten
 		if escex {
-			escex = false
-
-			switch r {
-			case KeyUp:
-				i.historyPrev(buf, &currentLineBuf)
-			case KeyDown:
-				i.historyNext(buf, &currentLineBuf)
-			case KeyLeft:
-				buf.MoveLeft()
-			case KeyRight:
-				buf.MoveRight()
-			case CharBracketedPaste:
-				var code string
-				for range 3 {
-					r, err = i.Terminal.Read()
-					if err != nil {
-						return "", io.EOF
-					}
-
-					code += string(r)
-				}
-				if code == CharBracketedPasteStart {
-					i.Pasting = true
-				} else if code == CharBracketedPasteEnd {
-					i.Pasting = false
-				}
-			case KeyDel:
-				if buf.DisplaySize() > 0 {
-					buf.Delete()
-				}
-				metaDel = true
-			case MetaStart:
-				buf.MoveToStart()
-			case MetaEnd:
-				buf.MoveToEnd()
-			default:
-				// skip any keys we don't know about
+			shouldContinue, err := i.processEscapeEx(r, buf, &currentLineBuf, &escex, &metaDel)
+			if err != nil {
+				return "", err
+			}
+			if shouldContinue {
 				continue
 			}
-			continue
 		} else if esc {
-			esc = false
-
-			switch r {
-			case 'b':
-				buf.MoveLeftWord()
-			case 'f':
-				buf.MoveRightWord()
-			case CharBackspace:
-				buf.DeleteWord()
-			case CharEscapeEx:
-				escex = true
+			if i.processEscape(r, buf, &esc, &escex) {
+				continue
 			}
-			continue
 		}
 
-		switch r {
-		case CharNull:
-			continue
-		case CharEsc:
-			esc = true
-		case CharInterrupt:
-			i.pastedLines = nil
-			i.Prompt.UseAlt = false
-			return "", ErrInterrupt
-		case CharPrev:
-			i.historyPrev(buf, &currentLineBuf)
-		case CharNext:
-			i.historyNext(buf, &currentLineBuf)
-		case CharLineStart:
-			buf.MoveToStart()
-		case CharLineEnd:
-			buf.MoveToEnd()
-		case CharBackward:
-			buf.MoveLeft()
-		case CharForward:
-			buf.MoveRight()
-		case CharBackspace, CharCtrlH:
-			if buf.IsEmpty() && len(i.pastedLines) > 0 {
-				lastIdx := len(i.pastedLines) - 1
-				prevLine := i.pastedLines[lastIdx]
-				i.pastedLines = i.pastedLines[:lastIdx]
-				fmt.Print(CursorBOL + ClearToEOL + CursorUp + CursorBOL + ClearToEOL)
-				if len(i.pastedLines) == 0 {
-					fmt.Print(i.Prompt.Prompt)
-					i.Prompt.UseAlt = false
-				} else {
-					fmt.Print(i.Prompt.AltPrompt)
-				}
-				for _, r := range prevLine {
-					buf.Add(r)
-				}
-			} else {
-				buf.Remove()
-			}
-		case CharTab:
-			// todo: convert back to real tabs
-			for range 8 {
-				buf.Add(' ')
-			}
-		case CharDelete:
-			if buf.DisplaySize() > 0 {
-				buf.Delete()
-			} else {
-				return "", io.EOF
-			}
-		case CharKill:
-			buf.DeleteRemaining()
-		case CharCtrlU:
-			buf.DeleteBefore()
-		case CharCtrlL:
-			buf.ClearScreen()
-		case CharCtrlW:
-			buf.DeleteWord()
-		case CharCtrlZ:
-			fd := os.Stdin.Fd()
-			return handleCharCtrlZ(fd, i.Terminal.termios)
-		case CharCtrlJ:
-			// If not draining cooked-mode input, treat as multiline
-			if !draining {
-				i.pastedLines = append(i.pastedLines, buf.String())
-				buf.Buf.Clear()
-				buf.Pos = 0
-				buf.DisplayPos = 0
-				buf.LineHasSpace.Clear()
-				fmt.Println()
-				fmt.Print(i.Prompt.AltPrompt)
-				i.Prompt.UseAlt = true
-				continue
-			}
-			// Draining cooked-mode input: treat \n as submit
-			fallthrough
-		case CharEnter:
-			output := buf.String()
-			if len(i.pastedLines) > 0 {
-				output = strings.Join(i.pastedLines, "\n") + "\n" + output
-				i.pastedLines = nil
-			}
-			if output != "" {
-				i.History.Add(output)
-			}
-			buf.MoveToEnd()
-			fmt.Println()
-			i.Prompt.UseAlt = false
-
-			return output, nil
-		default:
-			if metaDel {
-				metaDel = false
-				continue
-			}
-			if r >= CharSpace || r == CharEnter || r == CharCtrlJ {
-				buf.Add(r)
-			}
+		// Normale Zeichen verarbeiten
+		output, done, err := i.processCharacter(r, buf, &currentLineBuf, &esc, &metaDel, draining)
+		if done {
+			return output, err
 		}
 	}
 }
 
+// HistoryEnable aktiviert die History-Funktionalität
 func (i *Instance) HistoryEnable() {
 	i.History.Enabled = true
 }
 
+// HistoryDisable deaktiviert die History-Funktionalität
 func (i *Instance) HistoryDisable() {
 	i.History.Enabled = false
 }
 
+// historyPrev navigiert zur vorherigen History-Eintrag
 func (i *Instance) historyPrev(buf *Buffer, currentLineBuf *[]rune) {
 	if i.History.Pos > 0 {
 		if i.History.Pos == i.History.Size() {
@@ -312,6 +183,7 @@ func (i *Instance) historyPrev(buf *Buffer, currentLineBuf *[]rune) {
 	}
 }
 
+// historyNext navigiert zum nächsten History-Eintrag
 func (i *Instance) historyNext(buf *Buffer, currentLineBuf *[]rune) {
 	if i.History.Pos < i.History.Size() {
 		buf.Replace([]rune(i.History.Next()))
@@ -319,29 +191,4 @@ func (i *Instance) historyNext(buf *Buffer, currentLineBuf *[]rune) {
 			buf.Replace(*currentLineBuf)
 		}
 	}
-}
-
-func NewTerminal() (*Terminal, error) {
-	fd := os.Stdin.Fd()
-	termios, err := SetRawMode(fd)
-	if err != nil {
-		return nil, err
-	}
-	if err := UnsetRawMode(fd, termios); err != nil {
-		return nil, err
-	}
-
-	t := &Terminal{
-		reader: bufio.NewReader(os.Stdin),
-	}
-
-	return t, nil
-}
-
-func (t *Terminal) Read() (rune, error) {
-	r, _, err := t.reader.ReadRune()
-	if err != nil {
-		return 0, err
-	}
-	return r, nil
 }

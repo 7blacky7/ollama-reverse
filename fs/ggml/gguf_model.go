@@ -1,90 +1,18 @@
-// Package ggml - GGUF Decode Operations
+// Package ggml - GGUF Model Struktur und Decode
 //
-// Dieses Modul enthaelt Funktionen zum Lesen von GGUF-Dateien:
-// - containerGGUF: Container-Struktur fuer GGUF-Header
-// - gguf: Hauptstruktur fuer GGUF-Modelle
-// - Decode: Deserialisierung von KV-Paaren und Tensors
-// - readGGUF*: Lese-Funktionen fuer verschiedene Datentypen
+// Dieses Modul enthaelt die Haupt-Modell-Struktur fuer GGUF:
+// - gguf: Repraesentiert ein geladenes GGUF-Modell
+// - newGGUF: Factory-Funktion fuer gguf-Instanzen
+// - KV/Tensors: Zugriffsmethoden
+// - numTensor/numKV: Versionsspezifische Getter
+// - Decode: Haupt-Deserialisierungsfunktion
+// - decodeTensors: Tensor-Metadaten lesen
 package ggml
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 )
-
-// GGUF Type Constants
-const (
-	ggufTypeUint8 uint32 = iota
-	ggufTypeInt8
-	ggufTypeUint16
-	ggufTypeInt16
-	ggufTypeUint32
-	ggufTypeInt32
-	ggufTypeFloat32
-	ggufTypeBool
-	ggufTypeString
-	ggufTypeArray
-	ggufTypeUint64
-	ggufTypeInt64
-	ggufTypeFloat64
-)
-
-// containerGGUF repraesentiert den GGUF-Header mit Versionsinformationen
-type containerGGUF struct {
-	ByteOrder binary.ByteOrder
-	Version   uint32
-
-	V1 struct {
-		NumTensor uint32
-		NumKV     uint32
-	}
-
-	V2 struct {
-		NumTensor uint64
-		NumKV     uint64
-	}
-
-	V3 struct {
-		NumTensor uint64
-		NumKV     uint64
-	}
-
-	maxArraySize int
-}
-
-// Name gibt den Container-Namen zurueck
-func (c *containerGGUF) Name() string {
-	return "gguf"
-}
-
-// Decode liest den GGUF-Header und dekodiert das Modell
-func (c *containerGGUF) Decode(rs io.ReadSeeker) (model, error) {
-	if err := binary.Read(rs, c.ByteOrder, &c.Version); err != nil {
-		return nil, err
-	}
-
-	var err error
-	switch c.Version {
-	case 1:
-		err = binary.Read(rs, c.ByteOrder, &c.V1)
-	case 2:
-		err = binary.Read(rs, c.ByteOrder, &c.V2)
-	default:
-		err = binary.Read(rs, c.ByteOrder, &c.V3)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	model := newGGUF(c)
-	if err := model.Decode(rs); err != nil {
-		return nil, err
-	}
-
-	return model, nil
-}
 
 // gguf repraesentiert ein geladenes GGUF-Modell
 type gguf struct {
@@ -277,75 +205,4 @@ func (llm *gguf) decodeTensors(rs io.ReadSeeker) error {
 		llm.parameters += tensor.Elements()
 	}
 	return nil
-}
-
-// readGGUF liest einen typisierten Wert aus dem Reader
-func readGGUF[T any](llm *gguf, r io.Reader) (T, error) {
-	var t T
-	err := binary.Read(r, llm.ByteOrder, &t)
-	return t, err
-}
-
-// readGGUFV1String liest einen V1-String (null-terminiert)
-func readGGUFV1String(llm *gguf, r io.Reader) (string, error) {
-	var length uint64
-	if err := binary.Read(r, llm.ByteOrder, &length); err != nil {
-		return "", err
-	}
-
-	var b bytes.Buffer
-	if _, err := io.CopyN(&b, r, int64(length)); err != nil {
-		return "", err
-	}
-
-	// V1 Strings sind null-terminiert
-	b.Truncate(b.Len() - 1)
-
-	return b.String(), nil
-}
-
-// discardGGUFString ueberspringt einen String im Reader
-func discardGGUFString(llm *gguf, r io.Reader) error {
-	buf := llm.scratch[:8]
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		return err
-	}
-
-	size := int(llm.ByteOrder.Uint64(buf))
-	for size > 0 {
-		n, err := r.Read(llm.scratch[:min(size, cap(llm.scratch))])
-		if err != nil {
-			return err
-		}
-		size -= n
-	}
-	return nil
-}
-
-// readGGUFString liest einen String aus dem Reader
-func readGGUFString(llm *gguf, r io.Reader) (string, error) {
-	if llm.Version == 1 {
-		return readGGUFV1String(llm, r)
-	}
-
-	buf := llm.scratch[:8]
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		return "", err
-	}
-
-	length := int(llm.ByteOrder.Uint64(buf))
-	if length > len(llm.scratch) {
-		buf = make([]byte, length)
-	} else {
-		buf = llm.scratch[:length]
-	}
-	clear(buf)
-
-	_, err = io.ReadFull(r, buf)
-	if err != nil {
-		return "", err
-	}
-	return string(buf), nil
 }

@@ -1,95 +1,22 @@
+// Package gguf - GGUF File Read Funktionen
+//
+// Dieses Modul enthaelt die Low-Level Lese-Funktionen fuer GGUF-Dateien:
+// - readTensor: Liest Tensor-Metadaten
+// - readKeyValue: Liest ein Key-Value Paar
+// - read[T]: Generische Funktion zum Lesen typisierter Werte
+// - readString: String-Deserialisierung
+// - readArray: Array-Deserialisierung mit Typ-Erkennung
+// - readArrayData[T]: Generische Array-Daten lesen
+// - readArrayString: String-Array lesen
 package gguf
 
 import (
-	"bytes"
-	"cmp"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
-	"iter"
-	"os"
-	"slices"
-	"strings"
 )
 
-const (
-	typeUint8 uint32 = iota
-	typeInt8
-	typeUint16
-	typeInt16
-	typeUint32
-	typeInt32
-	typeFloat32
-	typeBool
-	typeString
-	typeArray
-	typeUint64
-	typeInt64
-	typeFloat64
-)
-
-var ErrUnsupported = errors.New("unsupported")
-
-type File struct {
-	Magic   [4]byte
-	Version uint32
-
-	keyValues *lazy[KeyValue]
-	tensors   *lazy[TensorInfo]
-	offset    int64
-
-	file   *os.File
-	reader *bufferedReader
-	bts    []byte
-}
-
-func Open(path string) (f *File, err error) {
-	f = &File{bts: make([]byte, 4096)}
-	f.file, err = os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	f.reader = newBufferedReader(f.file, 32<<10)
-
-	if err := binary.Read(f.reader, binary.LittleEndian, &f.Magic); err != nil {
-		return nil, err
-	}
-
-	if bytes.Equal(f.Magic[:], []byte("gguf")) {
-		return nil, fmt.Errorf("%w file type %v", ErrUnsupported, f.Magic)
-	}
-
-	if err := binary.Read(f.reader, binary.LittleEndian, &f.Version); err != nil {
-		return nil, err
-	}
-
-	if f.Version < 2 {
-		return nil, fmt.Errorf("%w version %v", ErrUnsupported, f.Version)
-	}
-
-	f.tensors, err = newLazy(f, f.readTensor)
-	if err != nil {
-		return nil, err
-	}
-
-	f.tensors.successFunc = func() error {
-		offset := f.reader.offset
-
-		alignment := cmp.Or(f.KeyValue("general.alignment").Int(), 32)
-		f.offset = offset + (alignment-offset%alignment)%alignment
-		return nil
-	}
-
-	f.keyValues, err = newLazy(f, f.readKeyValue)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
+// readTensor liest die Metadaten eines einzelnen Tensors
 func (f *File) readTensor() (TensorInfo, error) {
 	name, err := readString(f)
 	if err != nil {
@@ -127,6 +54,7 @@ func (f *File) readTensor() (TensorInfo, error) {
 	}, nil
 }
 
+// readKeyValue liest ein einzelnes Key-Value Paar
 func (f *File) readKeyValue() (KeyValue, error) {
 	key, err := readString(f)
 	if err != nil {
@@ -180,11 +108,13 @@ func (f *File) readKeyValue() (KeyValue, error) {
 	}, nil
 }
 
+// read liest einen typisierten Wert aus dem Reader
 func read[T any](f *File) (t T, err error) {
 	err = binary.Read(f.reader, binary.LittleEndian, &t)
 	return t, err
 }
 
+// readString liest einen String aus dem Reader
 func readString(f *File) (string, error) {
 	n, err := read[uint64](f)
 	if err != nil {
@@ -204,6 +134,7 @@ func readString(f *File) (string, error) {
 	return string(bts), nil
 }
 
+// readArray liest ein typisiertes Array aus dem Reader
 func readArray(f *File) (any, error) {
 	t, err := read[uint32](f)
 	if err != nil {
@@ -245,6 +176,7 @@ func readArray(f *File) (any, error) {
 	}
 }
 
+// readArrayData liest typisierte Array-Daten
 func readArrayData[T any](f *File, n uint64) (s []T, err error) {
 	s = make([]T, n)
 	for i := range n {
@@ -259,6 +191,7 @@ func readArrayData[T any](f *File, n uint64) (s []T, err error) {
 	return s, nil
 }
 
+// readArrayString liest ein String-Array
 func readArrayString(f *File, n uint64) (s []string, err error) {
 	s = make([]string, n)
 	for i := range n {
@@ -271,77 +204,4 @@ func readArrayString(f *File, n uint64) (s []string, err error) {
 	}
 
 	return s, nil
-}
-
-func (f *File) Close() error {
-	f.keyValues.stop()
-	f.tensors.stop()
-	return f.file.Close()
-}
-
-func (f *File) KeyValue(key string) KeyValue {
-	if !strings.HasPrefix(key, "general.") && !strings.HasPrefix(key, "tokenizer.") {
-		key = f.KeyValue("general.architecture").String() + "." + key
-	}
-
-	if index := slices.IndexFunc(f.keyValues.values, func(kv KeyValue) bool {
-		return kv.Key == key
-	}); index >= 0 {
-		return f.keyValues.values[index]
-	}
-
-	for keyValue, ok := f.keyValues.next(); ok; keyValue, ok = f.keyValues.next() {
-		if keyValue.Key == key {
-			return keyValue
-		}
-	}
-
-	return KeyValue{}
-}
-
-func (f *File) NumKeyValues() int {
-	return int(f.keyValues.count)
-}
-
-func (f *File) KeyValues() iter.Seq2[int, KeyValue] {
-	return f.keyValues.All()
-}
-
-func (f *File) TensorInfo(name string) TensorInfo {
-	if index := slices.IndexFunc(f.tensors.values, func(t TensorInfo) bool {
-		return t.Name == name
-	}); index >= 0 {
-		return f.tensors.values[index]
-	}
-
-	// fast-forward through key values if we haven't already
-	_ = f.keyValues.rest()
-	for tensor, ok := f.tensors.next(); ok; tensor, ok = f.tensors.next() {
-		if tensor.Name == name {
-			return tensor
-		}
-	}
-
-	return TensorInfo{}
-}
-
-func (f *File) NumTensors() int {
-	return int(f.tensors.count)
-}
-
-func (f *File) TensorInfos() iter.Seq2[int, TensorInfo] {
-	// fast forward through key values if we haven't already
-	f.keyValues.rest()
-	return f.tensors.All()
-}
-
-func (f *File) TensorReader(name string) (TensorInfo, io.Reader, error) {
-	t := f.TensorInfo(name)
-	if t.NumBytes() == 0 {
-		return TensorInfo{}, nil, fmt.Errorf("tensor %s not found", name)
-	}
-
-	// fast forward through tensor info if we haven't already
-	_ = f.tensors.rest()
-	return t, io.NewSectionReader(f.file, f.offset+int64(t.Offset), t.NumBytes()), nil
 }

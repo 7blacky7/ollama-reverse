@@ -1,21 +1,75 @@
 # Build-Artefakte
 build/
 cmake-build-*/
+dist/
 *.o
 *.a
 *.so
 *.dll
+*.dylib
+*.exe
 
 # Modelle (zu groß)
 *.gguf
 *.bin
+*.safetensors
 models/
 
-# Python Cache
+# Submodules (zu groß, nicht unser Code)
+llama.cpp.upstream/
+llama/llama.cpp/
+
+# Vendor/Dependencies
+vendor/
+node_modules/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
+venv/
 
-# Externe Dependencies
-llama.cpp/ggml/
-llama.cpp/examples/llava/
+# Tests (optional indexieren)
+*_test.go
+*_test.py
+test_*/
+tests/
+testdata/
+
+# Dokumentation (extern)
+docs/
+*.md
+!README.md
+
+# GitHub/CI
+.github/
+
+# IDE
+.vscode/
+.idea/
+
+# App Assets (Bilder)
+*.ico
+*.png
+*.bmp
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# Logs
+*.log
+
+# macOS/Windows
+.DS_Store
+Thumbs.db
+
+# Ollama-spezifisch (nicht relevant für SigLIP)
+app/
+envconfig/
+format/
+gpu/
+progress/
+readline/
+auth/

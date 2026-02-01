@@ -8,17 +8,13 @@
  * - Tensor-Zuweisung zu siglip_ctx
  */
 
-#include "siglip.h"
+#include "siglip_internal.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
-
-// GGML Headers
-#include "ggml.h"
-#include "ggml-alloc.h"
 
 // ============================================================================
 // GGUF Konstanten und Typen
@@ -266,4 +262,120 @@ long gguf_get_data_start(FILE * f, int alignment) {
     long current_pos = ftell(f);
     long padding = (alignment - (current_pos % alignment)) % alignment;
     return current_pos + padding;
+}
+
+// ============================================================================
+// Tensor-Loading fuer siglip_ctx
+// ============================================================================
+
+/**
+ * Laedt alle Tensoren aus der GGUF-Datei und weist sie dem Kontext zu
+ */
+bool siglip_load_tensors(siglip_ctx * ctx, FILE * f, uint64_t n_tensors) {
+    SIGLIP_LOG_DEBUG("Lade %lu Tensoren...", (unsigned long)n_tensors);
+
+    // Tensor-Infos aus Header lesen
+    std::vector<gguf_tensor_info> tensor_infos(n_tensors);
+    for (uint64_t i = 0; i < n_tensors; i++) {
+        tensor_infos[i].name = gguf_read_string(f);
+        fread(&tensor_infos[i].n_dims, sizeof(uint32_t), 1, f);
+
+        tensor_infos[i].dims.resize(tensor_infos[i].n_dims);
+        for (uint32_t j = 0; j < tensor_infos[i].n_dims; j++) {
+            fread(&tensor_infos[i].dims[j], sizeof(uint64_t), 1, f);
+        }
+
+        fread(&tensor_infos[i].type, sizeof(uint32_t), 1, f);
+        fread(&tensor_infos[i].offset, sizeof(uint64_t), 1, f);
+
+        SIGLIP_LOG_DEBUG("  Tensor %lu: %s [%u dims], type=%u", i,
+                         tensor_infos[i].name.c_str(), tensor_infos[i].n_dims,
+                         tensor_infos[i].type);
+    }
+
+    // Gesamtgroesse berechnen und GGML Kontext erstellen
+    size_t total_size = gguf_calculate_tensor_size(tensor_infos);
+    ggml_init_params ggml_params = {
+        .mem_size   = total_size + 256 * 1024 * 1024,
+        .mem_buffer = nullptr,
+        .no_alloc   = false,
+    };
+    ctx->ctx_data = ggml_init(ggml_params);
+    if (!ctx->ctx_data) {
+        siglip_set_error("Konnte GGML Kontext nicht erstellen");
+        return false;
+    }
+
+    // Data-Start berechnen (32-byte aligned)
+    long data_start = gguf_get_data_start(f, 32);
+    fseek(f, data_start, SEEK_SET);
+    data_start = ftell(f);
+
+    // Block-Array initialisieren
+    ctx->tensors.blocks.resize(ctx->hparams.num_hidden_layers);
+
+    // Tensoren erstellen und Daten laden
+    for (const auto & ti : tensor_infos) {
+        // GGML Tensor erstellen
+        std::vector<int64_t> ne(4, 1);
+        for (uint32_t j = 0; j < ti.n_dims && j < 4; j++) {
+            ne[j] = ti.dims[j];
+        }
+
+        ggml_tensor * tensor = ggml_new_tensor_4d(
+            ctx->ctx_data, static_cast<ggml_type>(ti.type),
+            ne[0], ne[1], ne[2], ne[3]);
+        ggml_set_name(tensor, ti.name.c_str());
+
+        // Tensor-Daten aus Datei laden
+        fseek(f, data_start + ti.offset, SEEK_SET);
+        size_t bytes = ggml_nbytes(tensor);
+        if (fread(tensor->data, 1, bytes, f) != bytes) {
+            SIGLIP_LOG_ERROR("Fehler beim Laden von Tensor %s", ti.name.c_str());
+            return false;
+        }
+
+        // Tensor der richtigen Komponente zuweisen
+        const std::string & name = ti.name;
+
+        if (name == "siglip.patch_embed.weight") ctx->tensors.patch_embed_weight = tensor;
+        else if (name == "siglip.patch_embed.bias") ctx->tensors.patch_embed_bias = tensor;
+        else if (name == "siglip.pos_embed") ctx->tensors.pos_embed = tensor;
+        else if (name == "siglip.norm.weight") ctx->tensors.norm_weight = tensor;
+        else if (name == "siglip.norm.bias") ctx->tensors.norm_bias = tensor;
+        else if (name == "siglip.head.weight") ctx->tensors.head_weight = tensor;
+        else if (name == "siglip.head.bias") ctx->tensors.head_bias = tensor;
+        else if (name.find("siglip.blocks.") == 0) {
+            // Block-Tensor parsen: siglip.blocks.{i}.{component}
+            size_t dot1 = name.find('.', 14);
+            if (dot1 != std::string::npos) {
+                int block_idx = std::stoi(name.substr(14, dot1 - 14));
+                std::string component = name.substr(dot1 + 1);
+
+                if (block_idx >= 0 && block_idx < ctx->hparams.num_hidden_layers) {
+                    auto & block = ctx->tensors.blocks[block_idx];
+
+                    if (component == "attn.q.weight") block.attn_q_weight = tensor;
+                    else if (component == "attn.q.bias") block.attn_q_bias = tensor;
+                    else if (component == "attn.k.weight") block.attn_k_weight = tensor;
+                    else if (component == "attn.k.bias") block.attn_k_bias = tensor;
+                    else if (component == "attn.v.weight") block.attn_v_weight = tensor;
+                    else if (component == "attn.v.bias") block.attn_v_bias = tensor;
+                    else if (component == "attn.out.weight") block.attn_out_weight = tensor;
+                    else if (component == "attn.out.bias") block.attn_out_bias = tensor;
+                    else if (component == "mlp.fc1.weight") block.mlp_fc1_weight = tensor;
+                    else if (component == "mlp.fc1.bias") block.mlp_fc1_bias = tensor;
+                    else if (component == "mlp.fc2.weight") block.mlp_fc2_weight = tensor;
+                    else if (component == "mlp.fc2.bias") block.mlp_fc2_bias = tensor;
+                    else if (component == "ln1.weight") block.ln1_weight = tensor;
+                    else if (component == "ln1.bias") block.ln1_bias = tensor;
+                    else if (component == "ln2.weight") block.ln2_weight = tensor;
+                    else if (component == "ln2.bias") block.ln2_bias = tensor;
+                }
+            }
+        }
+    }
+
+    SIGLIP_LOG_INFO("Tensoren geladen: %lu", (unsigned long)n_tensors);
+    return true;
 }

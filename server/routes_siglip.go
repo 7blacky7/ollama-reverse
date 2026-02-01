@@ -4,7 +4,6 @@ package server
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -291,34 +290,4 @@ func (h *SigLIPHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/similarity", h.HandleSimilarity)
 	mux.HandleFunc("/api/siglip/models", h.HandleListModels)
 	mux.HandleFunc("/api/siglip/info", h.HandleSigLIPInfo)
-}
-
-// ============================================================================
-// Server Convenience Function
-// ============================================================================
-
-// StartSigLIPServer startet einen HTTP-Server fuer SigLIP.
-func StartSigLIPServer(addr, modelDir string) error {
-	handler := NewSigLIPHandler(modelDir)
-	defer handler.Close()
-
-	mux := http.NewServeMux()
-	handler.RegisterRoutes(mux)
-
-	// Health-Check Endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
-	})
-
-	return http.ListenAndServe(addr, mux)
-}
-
-// ============================================================================
-// Internal Helper
-// ============================================================================
-
-// decodeJSON dekodiert JSON aus dem Request-Body.
-func decodeJSON(r *http.Request, v interface{}) error {
-	return json.NewDecoder(r.Body).Decode(v)
 }

@@ -1,5 +1,94 @@
 package siglip
 
+/*
+#include <stdlib.h>
+#include "siglip.h"
+*/
+import "C"
+
+import (
+	"unsafe"
+)
+
+// ============================================================================
+// Global Functions - Version und Build Info
+// ============================================================================
+
+// Version gibt die SigLIP-Version zurueck
+func Version() string {
+	return C.GoString(C.siglip_version())
+}
+
+// BuildInfo gibt Build-Informationen zurueck
+func BuildInfo() string {
+	return C.GoString(C.siglip_build_info())
+}
+
+// SystemInfo gibt System-Informationen zurueck
+func SystemInfo() string {
+	return C.GoString(C.siglip_system_info())
+}
+
+// ============================================================================
+// Global Functions - Backend Management
+// ============================================================================
+
+// BackendAvailable prueft ob ein Backend verfuegbar ist
+func BackendAvailable(backend Backend) bool {
+	return bool(C.siglip_backend_available(C.enum_siglip_backend(backend)))
+}
+
+// AvailableBackends gibt eine Liste verfuegbarer Backends zurueck
+func AvailableBackends() []Backend {
+	var cBackends [4]C.enum_siglip_backend
+	n := C.siglip_get_available_backends(&cBackends[0], 4)
+
+	backends := make([]Backend, int(n))
+	for i := 0; i < int(n); i++ {
+		backends[i] = Backend(cBackends[i])
+	}
+
+	return backends
+}
+
+// ============================================================================
+// Global Functions - Logging und Error Handling
+// ============================================================================
+
+// SetLogLevel setzt das globale Log-Level
+func SetLogLevel(level LogLevel) {
+	C.siglip_set_log_level(C.enum_siglip_log_level(level))
+}
+
+// GetLastError gibt den letzten Fehler zurueck
+func GetLastError() string {
+	errStr := C.siglip_get_last_error()
+	if errStr == nil {
+		return ""
+	}
+	return C.GoString(errStr)
+}
+
+// ClearError loescht den letzten Fehler
+func ClearError() {
+	C.siglip_clear_error()
+}
+
+// ============================================================================
+// Image Loading Helper
+// ============================================================================
+
+// loadImageFromMemory laedt ein Bild aus Speicher (Hilfsfunktion fuer Encode)
+func loadImageFromMemory(data []byte) *C.struct_siglip_image {
+	// Base64 encoding als Workaround, da siglip.h keine direkte
+	// Funktion fuer Speicher-Bilder hat
+	base64Data := base64Encode(data)
+	cBase64 := C.CString(base64Data)
+	defer C.free(unsafe.Pointer(cBase64))
+
+	return C.siglip_image_from_base64(cBase64)
+}
+
 // ============================================================================
 // Image
 // ============================================================================

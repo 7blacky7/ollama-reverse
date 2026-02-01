@@ -164,22 +164,8 @@ func (m *Model) Encode(image []byte) (*Embedding, error) {
 		return nil, ErrInvalidImage
 	}
 
-	// Bild aus Speicher laden (siglip_image_from_raw erwartet RGB-Daten,
-	// wir muessen stb_image nutzen - das passiert in C)
-	// Da siglip.h keine direkte Funktion fuer Speicher-Bilder hat,
-	// nutzen wir einen Workaround ueber Base64 oder temporaere Datei.
-	// Hier implementieren wir es ueber direkte Raw-Daten nach Dekodierung.
-
-	// Fuer jetzt: Wir erwarten RGB-Daten direkt oder implementieren
-	// eine Hilfsfunktion. Da siglip_image_from_base64 existiert, nutzen wir das.
-	// Besser: Wir fuegen eine neue C-Funktion hinzu oder nutzen stb_image direkt.
-
-	// Temporaerer Workaround: Wir nehmen an, dass das Bild bereits dekodiert ist
-	// als RGB uint8 Array mit bekannten Dimensionen.
-	// In der Praxis wuerde man hier stb_image_load_from_memory nutzen.
-
-	// Fuer eine vollstaendige Implementation fuegen wir eine Hilfsfunktion hinzu:
-	cImg := m.loadImageFromMemory(image)
+	// Bild aus Speicher laden (via Base64-Workaround in utils.go)
+	cImg := loadImageFromMemory(image)
 	if cImg == nil {
 		return nil, ErrInvalidImage
 	}
@@ -260,7 +246,7 @@ func (m *Model) EncodeBatch(images [][]byte) ([]*Embedding, error) {
 	// C-Bilder erstellen
 	cImages := make([]*C.struct_siglip_image, len(images))
 	for i, img := range images {
-		cImg := m.loadImageFromMemory(img)
+		cImg := loadImageFromMemory(img)
 		if cImg == nil {
 			// Cleanup bereits erstellte Bilder
 			for j := 0; j < i; j++ {
@@ -319,27 +305,6 @@ func (m *Model) EncodeBatch(images [][]byte) ([]*Embedding, error) {
 	C.siglip_embedding_free(cEmb)
 
 	return embeddings, nil
-}
-
-// loadImageFromMemory laedt ein Bild aus Speicher
-// Dies ist eine Hilfsfunktion, die stb_image nutzt
-func (m *Model) loadImageFromMemory(data []byte) *C.struct_siglip_image {
-	// Da siglip.h keine direkte Funktion fuer Speicher-Bilder hat,
-	// implementieren wir einen Workaround.
-	// Option 1: Base64-Encoding (ineffizient)
-	// Option 2: Temporaere Datei (langsam)
-	// Option 3: Direkte stb_image Nutzung in CGO
-
-	// Fuer die vollstaendige Implementation wuerde man eine neue C-Funktion
-	// siglip_image_from_memory hinzufuegen. Hier nutzen wir einen Workaround
-	// mit Base64.
-
-	// Base64 encoding
-	base64Data := base64Encode(data)
-	cBase64 := C.CString(base64Data)
-	defer C.free(unsafe.Pointer(cBase64))
-
-	return C.siglip_image_from_base64(cBase64)
 }
 
 // BatchEncode ist ein Convenience-Wrapper fuer Batch-Encoding mit Fehlerbehandlung

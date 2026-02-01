@@ -8,12 +8,9 @@
  * - Globale Log-Einstellungen
  */
 
-#include "siglip.h"
+#include "siglip_internal.h"
 
 #include <string>
-
-// GGML Headers
-#include "ggml.h"
 
 #ifdef GGML_USE_CUDA
 #include "ggml-cuda.h"
@@ -160,13 +157,8 @@ int siglip_get_available_backends(siglip_backend * backends, int max_backends) {
 }
 
 // ============================================================================
-// Globale Log-Einstellungen (Deklaration hier, Implementation in core)
+// Globale Log-Einstellungen (Variablen in siglip_internal.h extern deklariert)
 // ============================================================================
-
-// Diese Variablen werden in siglip_core.cpp definiert
-extern siglip_log_level g_log_level;
-extern siglip_log_callback g_log_callback;
-extern void * g_log_user_data;
 
 void siglip_set_log_level(siglip_log_level level) {
     g_log_level = level;

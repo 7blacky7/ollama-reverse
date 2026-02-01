@@ -264,3 +264,29 @@ func (h *SigLIPHandler) writeError(w http.ResponseWriter, status int, message, c
 		Code:  code,
 	})
 }
+
+// decodeJSON dekodiert JSON aus dem Request-Body.
+func decodeJSON(r *http.Request, v interface{}) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+// ============================================================================
+// Server Convenience Function
+// ============================================================================
+
+// StartSigLIPServer startet einen HTTP-Server fuer SigLIP.
+func StartSigLIPServer(addr, modelDir string) error {
+	handler := NewSigLIPHandler(modelDir)
+	defer handler.Close()
+
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	// Health-Check Endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	return http.ListenAndServe(addr, mux)
+}

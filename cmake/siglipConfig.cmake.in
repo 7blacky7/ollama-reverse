@@ -1,0 +1,13 @@
+@PACKAGE_INIT@
+
+# SigLIP Vision Encoder CMake Package Config
+# Verwendung mit find_package(siglip CONFIG)
+
+include("${CMAKE_CURRENT_LIST_DIR}/siglipTargets.cmake")
+
+check_required_components(siglip)
+
+# Optionale GGML Dependency
+if(@SIGLIP_CUDA@)
+    find_package(CUDAToolkit QUIET)
+endif()

@@ -1,0 +1,21 @@
+# Build-Artefakte
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dll
+
+# Modelle (zu groß)
+*.gguf
+*.bin
+models/
+
+# Python Cache
+__pycache__/
+*.pyc
+.venv/
+
+# Externe Dependencies
+llama.cpp/ggml/
+llama.cpp/examples/llava/

@@ -1,13 +1,12 @@
+// server.go - Server-Struktur und Lifecycle-Management fuer Image-Generation
+// Dieses Modul enthaelt die Hauptstruktur des Servers sowie Start-, Stop- und Health-Check-Logik.
 package imagegen
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -21,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ollama/ollama/llm"
 	"github.com/ollama/ollama/ml"
 )
 
@@ -165,6 +163,7 @@ func (s *Server) ModelPath() string {
 	return s.modelName
 }
 
+// Load implements the LlamaServer interface for model loading.
 func (s *Server) Load(ctx context.Context, systemInfo ml.SystemInfo, gpus []ml.DeviceInfo, requireFull bool) ([]ml.DeviceID, error) {
 	return nil, nil
 }
@@ -225,92 +224,8 @@ func (s *Server) getLastErr() string {
 	return s.lastErr
 }
 
+// WaitUntilRunning implements the LlamaServer interface.
 func (s *Server) WaitUntilRunning(ctx context.Context) error { return nil }
-
-func (s *Server) Completion(ctx context.Context, req llm.CompletionRequest, fn func(llm.CompletionResponse)) error {
-	seed := req.Seed
-	if seed == 0 {
-		seed = time.Now().UnixNano()
-	}
-
-	// Extract raw image bytes from llm.ImageData slice
-	var images [][]byte
-	for _, img := range req.Images {
-		images = append(images, img.Data)
-	}
-
-	// Build request for subprocess
-	creq := struct {
-		Prompt string   `json:"prompt"`
-		Width  int32    `json:"width,omitempty"`
-		Height int32    `json:"height,omitempty"`
-		Steps  int32    `json:"steps,omitempty"`
-		Seed   int64    `json:"seed,omitempty"`
-		Images [][]byte `json:"images,omitempty"`
-	}{
-		Prompt: req.Prompt,
-		Width:  req.Width,
-		Height: req.Height,
-		Steps:  req.Steps,
-		Seed:   seed,
-		Images: images,
-	}
-
-	body, err := json.Marshal(creq)
-	if err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("http://127.0.0.1:%d/completion", s.port)
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.client.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%s", strings.TrimSpace(string(body)))
-	}
-
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024) // 16MB max
-	for scanner.Scan() {
-		// Parse subprocess response (has singular "image" field)
-		var raw struct {
-			Image   string `json:"image,omitempty"`
-			Content string `json:"content,omitempty"`
-			Done    bool   `json:"done"`
-			Step    int    `json:"step,omitempty"`
-			Total   int    `json:"total,omitempty"`
-		}
-		if err := json.Unmarshal(scanner.Bytes(), &raw); err != nil {
-			continue
-		}
-
-		// Convert to llm.CompletionResponse
-		cresp := llm.CompletionResponse{
-			Content:    raw.Content,
-			Done:       raw.Done,
-			Step:       raw.Step,
-			TotalSteps: raw.Total,
-			Image:      raw.Image,
-		}
-
-		fn(cresp)
-		if cresp.Done {
-			return nil
-		}
-	}
-
-	return scanner.Err()
-}
 
 // Close terminates the subprocess.
 func (s *Server) Close() error {
@@ -332,33 +247,7 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// VRAMSize returns the estimated VRAM usage.
-func (s *Server) VRAMSize() uint64 {
-	return s.vramSize
-}
-
-// TotalSize returns the total memory usage.
-func (s *Server) TotalSize() uint64 {
-	return s.vramSize
-}
-
-// VRAMByGPU returns VRAM usage for a specific GPU.
-func (s *Server) VRAMByGPU(id ml.DeviceID) uint64 {
-	return s.vramSize
-}
-
-func (s *Server) Embedding(ctx context.Context, input string) ([]float32, int, error) {
-	return nil, 0, errors.New("not supported")
-}
-
-func (s *Server) Tokenize(ctx context.Context, content string) ([]int, error) {
-	return nil, errors.New("not supported")
-}
-
-func (s *Server) Detokenize(ctx context.Context, tokens []int) (string, error) {
-	return "", errors.New("not supported")
-}
-
+// Pid returns the process ID of the subprocess.
 func (s *Server) Pid() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -368,9 +257,10 @@ func (s *Server) Pid() int {
 	return -1
 }
 
-func (s *Server) GetPort() int                                       { return s.port }
-func (s *Server) GetDeviceInfos(ctx context.Context) []ml.DeviceInfo { return nil }
+// GetPort returns the port the subprocess is listening on.
+func (s *Server) GetPort() int { return s.port }
 
+// HasExited returns true if the subprocess has exited.
 func (s *Server) HasExited() bool {
 	select {
 	case <-s.done:
@@ -379,6 +269,3 @@ func (s *Server) HasExited() bool {
 		return false
 	}
 }
-
-// Ensure Server implements llm.LlamaServer
-var _ llm.LlamaServer = (*Server)(nil)

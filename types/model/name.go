@@ -1,5 +1,5 @@
-// Package model contains types and utilities for parsing, validating, and
-// working with model names and digests.
+// Package model - Kernmodul fuer Model-Namen und Parsing
+// Enthaelt: Name-Struktur, Parsing-Funktionen, Konstanten
 package model
 
 import (
@@ -206,106 +206,12 @@ func Merge(a, b Name) Name {
 	return a
 }
 
-// String returns the name string, in the format that [ParseNameNoDefaults]
-// accepts as valid, if [Name.IsValid] reports true; otherwise the empty
-// string is returned.
-func (n Name) String() string {
-	var b strings.Builder
-	if n.Host != "" {
-		b.WriteString(n.Host)
-		b.WriteByte('/')
-	}
-	if n.Namespace != "" {
-		b.WriteString(n.Namespace)
-		b.WriteByte('/')
-	}
-	b.WriteString(n.Model)
-	if n.Tag != "" {
-		b.WriteByte(':')
-		b.WriteString(n.Tag)
-	}
-	return b.String()
-}
-
-// DisplayShortest returns a short string version of the name.
-func (n Name) DisplayShortest() string {
-	var sb strings.Builder
-
-	if !strings.EqualFold(n.Host, defaultHost) {
-		sb.WriteString(n.Host)
-		sb.WriteByte('/')
-		sb.WriteString(n.Namespace)
-		sb.WriteByte('/')
-	} else if !strings.EqualFold(n.Namespace, defaultNamespace) {
-		sb.WriteString(n.Namespace)
-		sb.WriteByte('/')
-	}
-
-	// always include model and tag
-	sb.WriteString(n.Model)
-	sb.WriteString(":")
-	sb.WriteString(n.Tag)
-	return sb.String()
-}
-
-// IsValidNamespace reports whether the provided string is a valid
-// namespace.
-func IsValidNamespace(s string) bool {
-	return isValidPart(kindNamespace, s)
-}
-
-// IsValid reports whether all parts of the name are present and valid. The
-// digest is a special case, and is checked for validity only if present.
-//
-// Note: The digest check has been removed as is planned to be added back in
-// at a later time.
-func (n Name) IsValid() bool {
-	return n.IsFullyQualified()
-}
-
-// IsFullyQualified returns true if all parts of the name are present and
-// valid without the digest.
-func (n Name) IsFullyQualified() bool {
-	parts := []string{
-		n.Host,
-		n.Namespace,
-		n.Model,
-		n.Tag,
-	}
-	for i, part := range parts {
-		if !isValidPart(partKind(i), part) {
-			return false
-		}
-	}
-	return true
-}
-
-// Filepath returns a canonical filepath that represents the name with each part from
-// host to tag as a directory in the form:
-//
-//	{host}/{namespace}/{model}/{tag}
-//
-// It uses the system's filepath separator and ensures the path is clean.
-//
-// It panics if the name is not fully qualified. Use [Name.IsFullyQualified]
-// to check if the name is fully qualified.
-func (n Name) Filepath() string {
-	if !n.IsFullyQualified() {
-		panic("illegal attempt to get filepath of invalid name")
-	}
-	return filepath.Join(
-		n.Host,
-		n.Namespace,
-		n.Model,
-		n.Tag,
-	)
-}
-
 // LogValue returns a slog.Value that represents the name as a string.
 func (n Name) LogValue() slog.Value {
 	return slog.StringValue(n.String())
 }
 
+// EqualFold reports whether names are equal under Unicode case-folding.
 func (n Name) EqualFold(o Name) bool {
 	return strings.EqualFold(n.Host, o.Host) &&
 		strings.EqualFold(n.Namespace, o.Namespace) &&
@@ -319,78 +225,4 @@ func (n Name) BaseURL() *url.URL {
 		Scheme: n.ProtocolScheme,
 		Host:   n.Host,
 	}
-}
-
-// DisplayNamespaceModel returns the namespace and model joined by "/".
-func (n Name) DisplayNamespaceModel() string {
-	var b strings.Builder
-	b.WriteString(n.Namespace)
-	b.WriteByte('/')
-	b.WriteString(n.Model)
-	return b.String()
-}
-
-func isValidLen(kind partKind, s string) bool {
-	switch kind {
-	case kindHost:
-		return len(s) >= 1 && len(s) <= 350
-	case kindTag:
-		return len(s) >= 1 && len(s) <= 80
-	default:
-		return len(s) >= 1 && len(s) <= 80
-	}
-}
-
-func isValidPart(kind partKind, s string) bool {
-	if !isValidLen(kind, s) {
-		return false
-	}
-	for i := range s {
-		if i == 0 {
-			if !isAlphanumericOrUnderscore(s[i]) {
-				return false
-			}
-			continue
-		}
-		switch s[i] {
-		case '_', '-':
-		case '.':
-			if kind == kindNamespace {
-				return false
-			}
-		case ':':
-			if kind != kindHost && kind != kindDigest {
-				return false
-			}
-		default:
-			if !isAlphanumericOrUnderscore(s[i]) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func isAlphanumericOrUnderscore(c byte) bool {
-	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_'
-}
-
-func cutLast(s, sep string) (before, after string, ok bool) {
-	i := strings.LastIndex(s, sep)
-	if i >= 0 {
-		return s[:i], s[i+len(sep):], true
-	}
-	return s, "", false
-}
-
-// cutPromised cuts the last part of s at the last occurrence of sep. If sep is
-// found, the part before and after sep are returned as-is unless empty, in
-// which case they are returned as MissingPart, which will cause
-// [Name.IsValid] to return false.
-func cutPromised(s, sep string) (before, after string, ok bool) {
-	before, after, ok = cutLast(s, sep)
-	if !ok {
-		return before, after, false
-	}
-	return cmp.Or(before, MissingPart), cmp.Or(after, MissingPart), true
 }

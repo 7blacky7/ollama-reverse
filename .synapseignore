@@ -45,6 +45,14 @@ docs/
 # GitHub/CI
 .github/
 
+# Rausch-Reduktion (Semantic Search)
+**/*.patch
+**/CMakeLists.txt
+**/*.cuh
+**/ggml-common.h
+**/ggml-*.cu
+**/ggml-*.metal
+
 # IDE
 .vscode/
 .idea/

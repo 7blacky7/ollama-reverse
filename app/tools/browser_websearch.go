@@ -1,5 +1,11 @@
 //go:build windows || darwin
 
+// browser_websearch.go - Web-Suche API-Integration
+// Hauptkomponenten:
+// - BrowserWebSearch: Tool für Web-Suche via API
+// - WebSearchContent: Datenstruktur für Such-Ergebnisse
+// - WebSearchResponse: API-Antwort-Struktur
+
 package tools
 
 import (

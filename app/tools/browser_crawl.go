@@ -1,5 +1,11 @@
 //go:build windows || darwin
 
+// browser_crawl.go - Web-Crawling Funktionalität
+// Hauptkomponenten:
+// - BrowserCrawler: Tool zum Crawlen von Web-Seiten
+// - CrawlContent: Datenstruktur für gecrawlte Inhalte
+// - CrawlResponse: API-Antwort-Struktur
+
 package tools
 
 import (

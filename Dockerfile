@@ -47,10 +47,12 @@ ENV PATH=/opt/rh/gcc-toolset-11/root/usr/bin:$PATH
 ARG PARALLEL
 COPY CMakeLists.txt CMakePresets.json .
 COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
+COPY vision/nomic_cpp vision/nomic_cpp
 RUN --mount=type=cache,target=/root/.ccache \
     cmake --preset 'CPU' \
         && cmake --build --parallel ${PARALLEL} --preset 'CPU' \
-        && cmake --install build --component CPU --strip --parallel ${PARALLEL}
+        && cmake --install build --component CPU --strip --parallel ${PARALLEL} \
+        && cmake --install build --component Vision --strip --parallel ${PARALLEL}
 
 FROM base AS cuda-11
 ARG CUDA11VERSION=11.8
@@ -167,14 +169,15 @@ RUN curl -fsSL https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-
 ENV PATH=/usr/local/go/bin:$PATH
 RUN go mod download
 COPY . .
-# Vision ONNX Encoder (C++ Encoder deaktiviert - braucht ggml Integration)
-# TODO: Nomic C++ Library mit ggml-base verlinken wenn vollstaendig integriert
+# Nomic C++ Library fuer Vision Encoder
+COPY --from=cpu dist/lib/ollama/libnomic.a /usr/lib/
 ARG GOFLAGS="'-ldflags=-w -s'"
 ENV CGO_ENABLED=1
 ARG CGO_CFLAGS
 ARG CGO_CXXFLAGS
 ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
+ENV CGO_LDFLAGS="-L/usr/lib -lnomic"
 # Vision Embedding API mit Nomic GGUF Encoder
 RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -tags "vision" -trimpath -buildmode=pie -o /bin/ollama .

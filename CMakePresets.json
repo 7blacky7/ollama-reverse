@@ -116,7 +116,7 @@
     {
       "name": "CPU",
       "configurePreset": "Default",
-      "targets": [ "ggml-cpu" ]
+      "targets": [ "ggml-cpu", "nomic" ]
     },
     {
       "name": "CUDA",

@@ -5,7 +5,7 @@
 // INPUT: gin.Engine, modelDir
 // OUTPUT: Konfigurierte Vision-Endpoints
 // NEBENEFFEKTE: Registriert HTTP-Routen in Gin
-// ABHAENGIGKEITEN: gin-gonic/gin, VisionHandler
+// ABHAENGIGKEITEN: gin-gonic/gin, VisionHandler, HFVisionHandler, BackendHandler
 // HINWEISE: Integration der Vision API in den Haupt-Server
 
 package server
@@ -16,11 +16,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// VisionHandlers enthaelt alle Vision-Handler fuer externe Zugriffe.
+type VisionHandlers struct {
+	Vision  *VisionHandler
+	HF      *HFVisionHandler
+	Backend *BackendHandler
+}
+
 // RegisterVisionRoutesGin registriert alle Vision API Endpoints im Gin-Router.
 // Wird von GenerateRoutes aufgerufen wenn das vision build tag aktiv ist.
 func RegisterVisionRoutesGin(r *gin.Engine, modelDir string) (*VisionHandler, *HFVisionHandler) {
 	handler := NewVisionHandler(modelDir)
 	hfHandler := NewHFVisionHandler(modelDir)
+	backendHandler := NewBackendHandler(handler)
 
 	// Encoding Endpoints
 	r.POST("/api/vision/encode", ginWrapVision(handler.HandleEncode))
@@ -40,6 +48,11 @@ func RegisterVisionRoutesGin(r *gin.Engine, modelDir string) (*VisionHandler, *H
 	r.GET("/api/vision/models/hf", ginWrapVision(hfHandler.handleListHFModels))
 	r.GET("/api/vision/cache", ginWrapVision(hfHandler.handleCacheStatus))
 	r.DELETE("/api/vision/cache", ginWrapVision(hfHandler.handleClearCache))
+
+	// Backend Management Endpoints
+	r.GET("/api/vision/backends", ginWrapVision(backendHandler.handleListBackends))
+	r.GET("/api/vision/backends/status", ginWrapVision(backendHandler.handleBackendStatus))
+	r.POST("/api/vision/backends/select", ginWrapVision(backendHandler.handleSelectBackend))
 
 	return handler, hfHandler
 }

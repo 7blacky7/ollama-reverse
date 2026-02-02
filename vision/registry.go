@@ -129,3 +129,20 @@ func (r *Registry) Create(name string, modelPath string, opts LoadOptions) (Visi
 func (r *Registry) CreateWithDefaults(name string, modelPath string) (VisionEncoder, error) {
 	return r.Create(name, modelPath, DefaultLoadOptions())
 }
+
+// ============================================================================
+// Registry Methoden - Kopieren
+// ============================================================================
+
+// Clone erstellt eine tiefe Kopie der Registry.
+// Nuetzlich fuer Tests oder isolierte Konfigurationen.
+func (r *Registry) Clone() *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	clone := NewRegistry()
+	for name, factory := range r.encoders {
+		clone.encoders[name] = factory
+	}
+	return clone
+}

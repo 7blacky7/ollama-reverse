@@ -1,10 +1,14 @@
+//go:build ggml_cgo
+// +build ggml_cgo
+
 // MODUL: ggml_backend
 // ZWECK: Integration mit GGML Backend-System fuer Vision Encoder
 // INPUT: Backend-Typ, LoadOptions
 // OUTPUT: ggml_backend_t Pointer via CGO
 // NEBENEFFEKTE: GGML Backend Initialisierung
 // ABHAENGIGKEITEN: ggml-backend.h (extern)
-// HINWEISE: Zentrale Stelle fuer Backend-Auswahl aller Vision Encoder
+// HINWEISE: Nur bei explizitem ggml_cgo Build-Tag kompiliert
+//           Erfordert libggml-base.a im Build-Verzeichnis
 
 package backend
 

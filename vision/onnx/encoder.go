@@ -27,8 +27,9 @@ const (
 	// DefaultEmbeddingDim ist die Standard-Embedding-Dimension fuer Nomic v1.5
 	DefaultEmbeddingDim = 768
 
-	// DefaultImageSize ist die erwartete Bildgroesse (quadratisch)
-	DefaultImageSize = 384
+	// DefaultImageSize ist die Fallback-Bildgroesse wenn nicht aus Modell lesbar
+	// 224 ist Standard fuer die meisten Vision Transformer (ViT, Nomic, etc.)
+	DefaultImageSize = 224
 
 	// DefaultInputName ist der ONNX Input-Tensor Name
 	DefaultInputName = "pixel_values"
@@ -117,13 +118,17 @@ func NewOnnxEncoder(modelPath string, loadOpts vision.LoadOptions) (*OnnxEncoder
 		return nil, fmt.Errorf("%w: %v", ErrSessionCreate, err)
 	}
 
+	// Bildgroesse dynamisch aus Modell lesen (Fallback: 224)
+	imageSize := session.GetImageSize()
+	opts.ImageSize = imageSize
+
 	return &OnnxEncoder{
 		session: session,
 		info: vision.ModelInfo{
 			Name:         "nomic-embed-vision-onnx",
 			Type:         "onnx",
 			EmbeddingDim: opts.EmbeddingDim,
-			ImageSize:    opts.ImageSize,
+			ImageSize:    imageSize,
 		},
 		opts:   opts,
 		closed: false,

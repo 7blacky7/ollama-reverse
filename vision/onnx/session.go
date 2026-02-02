@@ -47,10 +47,11 @@ func DestroyRuntime() error {
 
 // Session verwaltet eine ONNX Runtime Inference Session.
 type Session struct {
-	inner     *ort.DynamicAdvancedSession
-	inputName string
+	inner      *ort.DynamicAdvancedSession
+	inputName  string
 	outputName string
-	opts      SessionOptions
+	opts       SessionOptions
+	inputShape []int64 // Dynamisch aus Modell gelesen [N, C, H, W]
 }
 
 // SessionOptions konfiguriert die ONNX Session
@@ -131,12 +132,40 @@ func CreateSession(modelPath string, opts SessionOptions) (*Session, error) {
 		return nil, fmt.Errorf("session erstellen: %w", err)
 	}
 
-	return &Session{
+	sess := &Session{
 		inner:      inner,
 		inputName:  opts.InputName,
 		outputName: opts.OutputName,
 		opts:       opts,
-	}, nil
+		inputShape: nil,
+	}
+
+	// Input-Shape aus Modell-Datei lesen (nicht aus Session)
+	if inputs, _, err := ort.GetInputOutputInfo(modelPath); err == nil {
+		for _, info := range inputs {
+			if info.Name == opts.InputName && len(info.Dimensions) >= 4 {
+				sess.inputShape = info.Dimensions
+				break
+			}
+		}
+	}
+
+	return sess, nil
+}
+
+// GetImageSize extrahiert die Bildgroesse aus der Input-Shape.
+// Erwartet NCHW Format [N, C, H, W], gibt H zurueck.
+// Bei Fehler oder unbekannter Shape: Fallback auf 224 (Standard fuer ViT)
+func (s *Session) GetImageSize() int {
+	if len(s.inputShape) >= 4 {
+		h := s.inputShape[2]
+		// Plausibilitaets-Check: Groesse zwischen 64 und 1024 Pixel
+		if h > 0 && h <= 1024 {
+			return int(h)
+		}
+	}
+	// Fallback: 224 ist Standard fuer die meisten Vision Transformer
+	return 224
 }
 
 // ============================================================================

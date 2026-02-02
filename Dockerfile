@@ -176,9 +176,9 @@ ARG CGO_CXXFLAGS
 # MLX header path entfernt
 ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
-# Build ohne -tags mlx (MLX deaktiviert)
+# Build mit -tags vision (Vision Embedding API aktiviert)
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -trimpath -buildmode=pie -o /bin/ollama .
+    go build -tags vision -trimpath -buildmode=pie -o /bin/ollama .
 
 FROM --platform=linux/amd64 scratch AS amd64
 # COPY --from=cuda-11 dist/lib/ollama/ /lib/ollama/

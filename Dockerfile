@@ -205,10 +205,17 @@ COPY --from=cpu dist/lib/ollama /lib/ollama
 COPY --from=build /bin/ollama /bin/ollama
 
 FROM ubuntu:24.04
+# ONNX Runtime Version fuer Vision Encoder
+ARG ONNXRUNTIME_VERSION=1.17.1
 RUN apt-get update \
-    && apt-get install -y ca-certificates libvulkan1 libopenblas0 \
+    && apt-get install -y ca-certificates libvulkan1 libopenblas0 curl \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # ONNX Runtime GPU (CUDA 12) herunterladen und installieren
+    && curl -fsSL https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}.tgz \
+       | tar xz -C /tmp \
+    && cp /tmp/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}/lib/* /usr/lib/ \
+    && rm -rf /tmp/onnxruntime-linux-x64-gpu-*
 COPY --from=archive /bin /usr/bin
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --from=archive /lib/ollama /usr/lib/ollama

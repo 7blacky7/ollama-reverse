@@ -18,8 +18,8 @@ package mlx
 #include "mlx.h"
 #include <stdlib.h>
 
-// Helper to check if array is contiguous
-int _mlx_array_is_contiguous(bool* res, const mlx_array arr) {
+// Helper to check if array is contiguous (static to avoid linker collision with mlx.c)
+static int mlx_props_is_contiguous(bool* res, const mlx_array arr) {
     // MLX arrays from new_data are always contiguous
     // Only strided views may be non-contiguous
     *res = true;
@@ -46,7 +46,7 @@ func (a *Array) Size() int {
 // Non-contiguous arrays (e.g., from SliceStride) must call Contiguous() before Data().
 func (a *Array) IsContiguous() bool {
 	var res C.bool
-	C._mlx_array_is_contiguous(&res, a.c)
+	C.mlx_props_is_contiguous(&res, a.c)
 	return bool(res)
 }
 

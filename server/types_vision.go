@@ -1,4 +1,4 @@
-//go:build !vision
+//go:build vision
 
 // MODUL: types_vision
 // ZWECK: REST API Types fuer generische Vision Encoder (CLIP, SigLIP, etc.)
@@ -7,7 +7,9 @@
 // NEBENEFFEKTE: Keine
 // ABHAENGIGKEITEN: Keine
 // HINWEISE: Verwendet fuer /api/vision/* Endpoints
-// BUILD-TAG: Nur mit -tags vision_types (Types bereits in routes_*.go definiert)
+// BUILD-TAG: Kompiliert mit -tags vision
+//
+// WICHTIG: Modell-Verwaltungs-Types sind in routes_vision_models.go definiert
 
 package server
 
@@ -63,26 +65,6 @@ type VisionSimilarityRequest struct {
 	Image2 string `json:"image2"`
 }
 
-// VisionLoadRequest - Anfrage zum Laden eines Modells.
-// Endpoint: POST /api/vision/load
-type VisionLoadRequest struct {
-	// Model ist der Encoder-Typ (z.B. "clip", "siglip")
-	Model string `json:"model"`
-
-	// Path ist der Pfad zur GGUF-Datei
-	Path string `json:"path"`
-
-	// Backend ist das gewuenschte Compute-Backend (optional)
-	Backend string `json:"backend,omitempty"`
-}
-
-// VisionUnloadRequest - Anfrage zum Entladen eines Modells.
-// Endpoint: POST /api/vision/unload
-type VisionUnloadRequest struct {
-	// Model ist der Name des zu entladenden Modells
-	Model string `json:"model"`
-}
-
 // ============================================================================
 // Vision Encoder Response Types
 // ============================================================================
@@ -130,65 +112,4 @@ type VisionSimilarityResponse struct {
 
 	// ProcessingTimeMs ist die Verarbeitungszeit in Millisekunden
 	ProcessingTimeMs int64 `json:"processing_time_ms,omitempty"`
-}
-
-// VisionModelInfo - Informationen zu einem Vision-Encoder.
-type VisionModelInfo struct {
-	// Name ist der Modell-Name
-	Name string `json:"name"`
-
-	// Path ist der Pfad zur Modell-Datei
-	Path string `json:"path"`
-
-	// EmbeddingDim ist die Dimension der Embeddings
-	EmbeddingDim int `json:"embedding_dim"`
-
-	// ImageSize ist die erwartete Bildgroesse in Pixeln
-	ImageSize int `json:"image_size,omitempty"`
-
-	// Type ist der Encoder-Typ (z.B. "clip-vit-b", "siglip-so400m")
-	Type string `json:"type,omitempty"`
-
-	// Backend ist das verwendete Compute-Backend
-	Backend string `json:"backend,omitempty"`
-
-	// SizeBytes ist die Groesse des Modells in Bytes
-	SizeBytes int64 `json:"size_bytes,omitempty"`
-}
-
-// VisionModelsResponse - Liste verfuegbarer Encoder.
-// Endpoint: GET /api/vision/models
-type VisionModelsResponse struct {
-	// Models ist die Liste der verfuegbaren Modell-Namen
-	Models []string `json:"models"`
-
-	// LoadedModels ist eine Map von Namen zu Pfaden (nur geladene Modelle)
-	LoadedModels map[string]VisionModelInfo `json:"loaded_models"`
-}
-
-// VisionLoadResponse - Antwort nach dem Laden eines Modells.
-type VisionLoadResponse struct {
-	// Success gibt an, ob das Laden erfolgreich war
-	Success bool `json:"success"`
-
-	// Model ist der Name des geladenen Modells
-	Model string `json:"model"`
-
-	// Info enthaelt Details zum geladenen Modell
-	Info *VisionModelInfo `json:"info,omitempty"`
-
-	// Message ist eine optionale Nachricht
-	Message string `json:"message,omitempty"`
-}
-
-// VisionUnloadResponse - Antwort nach dem Entladen eines Modells.
-type VisionUnloadResponse struct {
-	// Success gibt an, ob das Entladen erfolgreich war
-	Success bool `json:"success"`
-
-	// Model ist der Name des entladenen Modells
-	Model string `json:"model"`
-
-	// Message ist eine optionale Nachricht
-	Message string `json:"message,omitempty"`
 }

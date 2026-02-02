@@ -212,7 +212,8 @@ COPY --from=build /bin/ollama /bin/ollama
 
 FROM ubuntu:24.04
 # ONNX Runtime Version fuer Vision Encoder
-ARG ONNXRUNTIME_VERSION=1.17.1
+# WICHTIG: onnxruntime_go v1.25.0 benoetigt ONNX Runtime v1.23.2
+ARG ONNXRUNTIME_VERSION=1.23.2
 RUN apt-get update \
     && apt-get install -y ca-certificates libvulkan1 libopenblas0 curl \
     && apt-get clean \
@@ -225,7 +226,8 @@ RUN apt-get update \
 COPY --from=archive /bin /usr/bin
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --from=archive /lib/ollama /usr/lib/ollama
-ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+# LD_LIBRARY_PATH: /usr/lib fuer ONNX Runtime, nvidia fuer CUDA
+ENV LD_LIBRARY_PATH=/usr/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV OLLAMA_HOST=0.0.0.0:11434

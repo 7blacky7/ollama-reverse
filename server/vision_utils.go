@@ -54,24 +54,7 @@ func decodeBase64Image(b64 string) ([]byte, error) {
 // Vektor-Operationen
 // ============================================================================
 
-// cosineSimilarity berechnet die Cosine-Aehnlichkeit zwischen zwei Vektoren.
-// Gibt einen Wert zwischen -1.0 und 1.0 zurueck.
-func cosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-
-	dot := dotProduct(a, b)
-	magA := magnitude(a)
-	magB := magnitude(b)
-
-	// Division durch null vermeiden
-	if magA == 0 || magB == 0 {
-		return 0
-	}
-
-	return dot / (magA * magB)
-}
+// NOTE: cosineSimilarity is now in handlers_vision_similarity.go to avoid duplication
 
 // dotProduct berechnet das Skalarprodukt zweier Vektoren.
 func dotProduct(a, b []float32) float32 {

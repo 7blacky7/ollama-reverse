@@ -8,13 +8,8 @@
 
 package server
 
-import (
-	"encoding/json"
-	"net/http"
-	"sync"
-
-	"github.com/ollama/ollama/vision"
-)
+// NOTE: VisionHandler and related functions are now in router_vision.go
+// This file only contains Request/Response types for the Vision API
 
 // ============================================================================
 // Request/Response Types fuer Vision API
@@ -85,85 +80,4 @@ type VisionSimilarityBatchResponse struct {
 type VisionSimilarityResult struct {
 	Index int     `json:"index"` // Index des Kandidaten
 	Score float32 `json:"score"` // Similarity-Score
-}
-
-// ============================================================================
-// VisionHandler - Zentrale Handler-Struktur
-// ============================================================================
-
-// VisionHandler verwaltet Vision Embedding Endpoints
-type VisionHandler struct {
-	registry *vision.Registry                // Registry fuer Encoder-Factories
-	models   map[string]vision.VisionEncoder // Geladene Modelle (gecacht)
-	paths    map[string]string               // Modell-Pfade
-	mu       sync.RWMutex                    // Thread-Sicherheit
-}
-
-// NewVisionHandler erstellt einen neuen VisionHandler
-func NewVisionHandler() *VisionHandler {
-	return &VisionHandler{
-		registry: vision.DefaultRegistry,
-		models:   make(map[string]vision.VisionEncoder),
-		paths:    make(map[string]string),
-	}
-}
-
-// Close schliesst alle geladenen Modelle
-func (h *VisionHandler) Close() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	var firstErr error
-	for name, encoder := range h.models {
-		if err := encoder.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		delete(h.models, name)
-	}
-	return firstErr
-}
-
-// ============================================================================
-// Interne Hilfsfunktionen
-// ============================================================================
-
-// getModel holt ein Modell aus dem Cache oder gibt Fehler zurueck
-func (h *VisionHandler) getModel(name string) (vision.VisionEncoder, error) {
-	h.mu.RLock()
-	encoder, exists := h.models[name]
-	h.mu.RUnlock()
-
-	if !exists {
-		return nil, errModelNotLoaded(name)
-	}
-	return encoder, nil
-}
-
-// writeVisionJSON schreibt eine JSON-Response
-func (h *VisionHandler) writeVisionJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-// writeVisionError schreibt eine Fehler-Response
-func (h *VisionHandler) writeVisionError(w http.ResponseWriter, status int, msg, code string) {
-	h.writeVisionJSON(w, status, VisionErrorResponse{Error: msg, Code: code})
-}
-
-// decodeVisionJSON dekodiert JSON aus dem Request-Body
-func decodeVisionJSON(r *http.Request, v interface{}) error {
-	return json.NewDecoder(r.Body).Decode(v)
-}
-
-// ============================================================================
-// Router Registration
-// ============================================================================
-
-// RegisterVisionRoutes registriert alle Vision-Routes auf einem http.ServeMux
-func (h *VisionHandler) RegisterVisionRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/vision/encode", h.HandleEncode)
-	mux.HandleFunc("/api/vision/batch", h.HandleBatch)
-	mux.HandleFunc("/api/vision/similarity", h.HandleSimilarity)
-	mux.HandleFunc("/api/vision/similarity/batch", h.HandleSimilarityBatch)
 }

@@ -131,6 +131,9 @@ func (s *Server) GenerateRoutes(rc *ollama.Registry) (http.Handler, error) {
 	// Inference (Anthropic compatibility)
 	r.POST("/v1/messages", middleware.AnthropicMessagesMiddleware(), s.ChatHandler)
 
+	// Vision API (wenn mit -tags vision kompiliert)
+	initVisionRoutes(r)
+
 	if rc != nil {
 		// wrap old with new
 		rs := &registry.Local{

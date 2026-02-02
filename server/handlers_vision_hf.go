@@ -84,8 +84,13 @@ func (h *HFVisionHandler) handleLoadHFModel(w http.ResponseWriter, r *http.Reque
 	downloadOpts := []huggingface.DownloadOption{
 		huggingface.WithDownloadRevision(revision),
 		huggingface.WithDownloadProgress(func(downloaded, total int64) {
-			percent := float64(downloaded) / float64(total) * 100
-			slog.Info("Download-Fortschritt", "model_id", req.ModelID, "percent", fmt.Sprintf("%.1f%%", percent))
+			// Division durch Null vermeiden (total=0 bei gecachten Dateien)
+			if total > 0 {
+				percent := float64(downloaded) / float64(total) * 100
+				slog.Info("Download-Fortschritt", "model_id", req.ModelID, "percent", fmt.Sprintf("%.1f%%", percent))
+			} else if downloaded > 0 {
+				slog.Info("Download-Fortschritt", "model_id", req.ModelID, "bytes", downloaded)
+			}
 		}),
 	}
 

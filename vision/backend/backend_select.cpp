@@ -12,6 +12,7 @@
 
 // GGML Headers
 #include "ggml-backend.h"
+#include "ggml-cpu.h"
 
 // Bedingte GPU-Backend Headers
 #if defined(GGML_USE_CUDA) || defined(GGML_USE_CUBLAS)

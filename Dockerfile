@@ -176,9 +176,10 @@ ARG CGO_CXXFLAGS
 # MLX header path entfernt
 ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
-# Build mit -tags vision,siglip (Vision Embedding API + SigLIP ModelManager)
+# Build mit -tags vision (Vision Embedding API ohne SigLIP - SigLIP C++ Library noch nicht integriert)
+# TODO: SigLIP CMake-Build vor Go-Build integrieren
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags "vision,siglip" -trimpath -buildmode=pie -o /bin/ollama .
+    go build -tags "vision" -trimpath -buildmode=pie -o /bin/ollama .
 
 FROM --platform=linux/amd64 scratch AS amd64
 # COPY --from=cuda-11 dist/lib/ollama/ /lib/ollama/

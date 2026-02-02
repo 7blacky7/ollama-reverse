@@ -213,16 +213,35 @@ func (s *Session) RunInference(input []float32, embeddingDim, imageSize int) ([]
 
 	// Output Tensor mit dynamischer Shape vorbereiten
 	// Vision Transformer: [batch, seq_len, embedding_dim] oder [batch, embedding_dim]
+	// ONNX kann -1 fuer dynamische Dimensionen haben - ersetzen durch konkrete Werte
 	var outputShape ort.Shape
 	var outputSize int
+
+	// Hilfsfunktion: Ersetze -1 durch Fallback
+	resolveShape := func(dim int64, fallback int64) int64 {
+		if dim <= 0 {
+			return fallback
+		}
+		return dim
+	}
+
 	if len(s.outputShape) == 3 {
 		// Rank 3: [batch, seq_len, dim] - typisch fuer ViT last_hidden_state
-		outputShape = ort.Shape{s.outputShape[0], s.outputShape[1], s.outputShape[2]}
-		outputSize = int(s.outputShape[0] * s.outputShape[1] * s.outputShape[2])
+		batch := resolveShape(s.outputShape[0], 1)
+		// ViT seq_len = (imageSize/patchSize)^2 + 1 (CLS token)
+		// Annahme: patchSize=14 fuer die meisten ViT Modelle
+		patchSize := int64(14)
+		defaultSeqLen := (int64(imageSize)/patchSize)*(int64(imageSize)/patchSize) + 1
+		seqLen := resolveShape(s.outputShape[1], defaultSeqLen)
+		dim := resolveShape(s.outputShape[2], int64(embeddingDim))
+		outputShape = ort.Shape{batch, seqLen, dim}
+		outputSize = int(batch * seqLen * dim)
 	} else if len(s.outputShape) == 2 {
 		// Rank 2: [batch, dim] - typisch fuer CLIP/SigLIP
-		outputShape = ort.Shape{s.outputShape[0], s.outputShape[1]}
-		outputSize = int(s.outputShape[0] * s.outputShape[1])
+		batch := resolveShape(s.outputShape[0], 1)
+		dim := resolveShape(s.outputShape[1], int64(embeddingDim))
+		outputShape = ort.Shape{batch, dim}
+		outputSize = int(batch * dim)
 	} else {
 		// Fallback: [1, embeddingDim]
 		outputShape = ort.Shape{1, int64(embeddingDim)}

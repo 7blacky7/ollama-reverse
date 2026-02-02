@@ -180,6 +180,25 @@ endif()
 
 option(MLX_ENGINE "Enable MLX backend" OFF)
 
+# ============================================================================
+# Vision Encoder: Nomic Vision (GGUF-basiert)
+# ============================================================================
+option(NOMIC_VISION_ENGINE "Enable Nomic Vision Encoder for image embeddings" ON)
+
+if(NOMIC_VISION_ENGINE)
+    message(STATUS "Building Nomic Vision Encoder...")
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vision/nomic_cpp)
+    # Library wird als libnomic.a gebaut, Go CGO erwartet -lnomic
+    install(TARGETS nomic
+        ARCHIVE DESTINATION ${OLLAMA_INSTALL_DIR} COMPONENT Vision
+        LIBRARY DESTINATION ${OLLAMA_INSTALL_DIR} COMPONENT Vision
+    )
+    # Header fuer CGO Include-Path
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/vision/nomic_cpp/nomic.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ollama COMPONENT Vision
+    )
+endif()
+
 if(MLX_ENGINE)
     message(STATUS "Setting up MLX (this takes a while...)")
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/x/ml/backend/mlx)

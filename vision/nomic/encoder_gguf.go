@@ -6,7 +6,7 @@
 // ABHAENGIGKEITEN: nomic_cpp/nomic.h, vision (LoadImage)
 // HINWEISE: Pfad-basiertes Interface, Close() MUSS aufgerufen werden
 
-//go:build vision && cgo
+//go:build vision && cgo && nomic_gguf
 
 package nomic
 

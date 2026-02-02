@@ -167,17 +167,15 @@ RUN curl -fsSL https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-
 ENV PATH=/usr/local/go/bin:$PATH
 RUN go mod download
 COPY . .
-# MLX deaktiviert - keine mlx-c headers noetig
-# RUN git clone --depth 1 --branch "$(cat MLX_VERSION)" https://github.com/ml-explore/mlx-c.git build/_deps/mlx-c-src
+# Vision ONNX Encoder (C++ Encoder deaktiviert - braucht ggml Integration)
+# TODO: Nomic C++ Library mit ggml-base verlinken wenn vollstaendig integriert
 ARG GOFLAGS="'-ldflags=-w -s'"
 ENV CGO_ENABLED=1
 ARG CGO_CFLAGS
 ARG CGO_CXXFLAGS
-# MLX header path entfernt
 ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
-# Build mit -tags vision (Vision Embedding API ohne SigLIP - SigLIP C++ Library noch nicht integriert)
-# TODO: SigLIP CMake-Build vor Go-Build integrieren
+# Vision Embedding API mit Nomic GGUF Encoder
 RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -tags "vision" -trimpath -buildmode=pie -o /bin/ollama .
 

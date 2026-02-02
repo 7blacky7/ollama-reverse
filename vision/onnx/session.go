@@ -211,9 +211,24 @@ func (s *Session) RunInference(input []float32, embeddingDim, imageSize int) ([]
 	}
 	defer inputTensor.Destroy()
 
-	// Output Tensor vorbereiten
-	outputShape := ort.Shape{1, int64(embeddingDim)}
-	outputData := make([]float32, embeddingDim)
+	// Output Tensor mit dynamischer Shape vorbereiten
+	// Vision Transformer: [batch, seq_len, embedding_dim] oder [batch, embedding_dim]
+	var outputShape ort.Shape
+	var outputSize int
+	if len(s.outputShape) == 3 {
+		// Rank 3: [batch, seq_len, dim] - typisch fuer ViT last_hidden_state
+		outputShape = ort.Shape{s.outputShape[0], s.outputShape[1], s.outputShape[2]}
+		outputSize = int(s.outputShape[0] * s.outputShape[1] * s.outputShape[2])
+	} else if len(s.outputShape) == 2 {
+		// Rank 2: [batch, dim] - typisch fuer CLIP/SigLIP
+		outputShape = ort.Shape{s.outputShape[0], s.outputShape[1]}
+		outputSize = int(s.outputShape[0] * s.outputShape[1])
+	} else {
+		// Fallback: [1, embeddingDim]
+		outputShape = ort.Shape{1, int64(embeddingDim)}
+		outputSize = embeddingDim
+	}
+	outputData := make([]float32, outputSize)
 	outputTensor, err := ort.NewTensor(outputShape, outputData)
 	if err != nil {
 		return nil, fmt.Errorf("output tensor: %w", err)
@@ -229,9 +244,18 @@ func (s *Session) RunInference(input []float32, embeddingDim, imageSize int) ([]
 		return nil, fmt.Errorf("inference: %w", err)
 	}
 
-	// Ergebnis kopieren
+	// Ergebnis extrahieren
+	rawOutput := outputTensor.GetData()
 	result := make([]float32, embeddingDim)
-	copy(result, outputTensor.GetData())
+
+	if len(s.outputShape) == 3 && len(rawOutput) > embeddingDim {
+		// Rank 3 Output [batch, seq_len, dim]: Ersten Token (CLS) extrahieren
+		// CLS Token ist bei Index 0, also die ersten embeddingDim Werte
+		copy(result, rawOutput[:embeddingDim])
+	} else {
+		// Rank 2 oder direktes Embedding
+		copy(result, rawOutput)
+	}
 
 	return result, nil
 }

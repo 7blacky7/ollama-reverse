@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: handlers_vision
 // ZWECK: HTTP Handler Implementierungen fuer Vision Embedding Endpoints (encode, batch)
 // INPUT: HTTP POST Requests mit Base64-kodierten Bildern

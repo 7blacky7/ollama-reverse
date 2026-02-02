@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: routes_vision_models
 // ZWECK: REST API Typen und Route-Registrierung fuer Vision Modell-Verwaltung
 // INPUT: HTTP Requests mit Modell-Namen und Pfaden

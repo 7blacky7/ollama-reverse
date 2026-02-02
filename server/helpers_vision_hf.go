@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: helpers_vision_hf
 // ZWECK: Hilfsfunktionen fuer HuggingFace Vision Handler (Cache, Pfade, JSON)
 // INPUT: Model-IDs, Revisions, Cache-Verzeichnisse

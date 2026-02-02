@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: handlers_vision_models
 // ZWECK: HTTP Handler Implementierungen fuer Vision Modell-Verwaltung (list, load, unload, info)
 // INPUT: HTTP Requests (GET/POST) mit Modell-Namen und Pfaden

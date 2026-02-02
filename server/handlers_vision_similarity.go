@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: handlers_vision_similarity
 // ZWECK: HTTP Handler fuer Vision Similarity Endpoints (einzel und batch)
 // INPUT: HTTP POST Requests mit Base64-kodierten Bildern

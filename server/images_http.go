@@ -1,3 +1,4 @@
+//go:build vision
 // Package server - HTTP-Utilities für Registry-Operationen
 //
 // Diese Datei enthält:

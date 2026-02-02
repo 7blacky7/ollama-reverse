@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: handlers_vision_hf
 // ZWECK: HTTP Handler Implementierungen fuer HuggingFace Vision Model Endpoints
 // INPUT: HTTP Requests (POST/GET/DELETE) mit Model-IDs und Cache-Parametern

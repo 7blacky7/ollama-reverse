@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: router_vision
 // ZWECK: Registriert Vision API Endpoints und definiert VisionHandler
 // INPUT: http.ServeMux, VisionHandler

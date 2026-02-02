@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: vision_errors
 // ZWECK: Fehler-Definitionen und Error-Handler fuer die Vision API
 // INPUT: Fehler, HTTP ResponseWriter, Status-Code

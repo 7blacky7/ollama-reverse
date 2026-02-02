@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: types_vision_hf
 // ZWECK: Request/Response Types fuer HuggingFace Vision Model API
 // INPUT: Keine (Type-Definitionen)

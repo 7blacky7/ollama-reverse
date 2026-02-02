@@ -1,3 +1,4 @@
+//go:build vision
 // MODUL: routes_vision_hf
 // ZWECK: HTTP Route-Definitionen und Handler-Struktur fuer HuggingFace Vision Model Endpoints
 // INPUT: HTTP Requests mit HuggingFace Model-IDs

@@ -19,10 +19,11 @@ package mlx
 #include <stdlib.h>
 
 // Helper to check if array is contiguous
-void _mlx_array_is_contiguous(bool *result, mlx_array a) {
+int _mlx_array_is_contiguous(bool* res, const mlx_array arr) {
     // MLX arrays from new_data are always contiguous
     // Only strided views may be non-contiguous
-    *result = true;
+    *res = true;
+    return 0;
 }
 */
 import "C"

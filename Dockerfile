@@ -184,8 +184,8 @@ ENV CGO_CFLAGS="${CGO_CFLAGS} -I/usr/local/include"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS} -I/usr/local/include"
 ENV CGO_LDFLAGS="-L/usr/lib -lnomic"
 # Vision Embedding API mit Nomic GGUF Encoder
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags "vision" -trimpath -buildmode=pie -o /bin/ollama .
+# HINWEIS: Cache-Mount temporaer entfernt um vision-Tag neu zu kompilieren
+RUN go build -tags "vision" -trimpath -buildmode=pie -o /bin/ollama .
 
 FROM --platform=linux/amd64 scratch AS amd64
 # COPY --from=cuda-11 dist/lib/ollama/ /lib/ollama/

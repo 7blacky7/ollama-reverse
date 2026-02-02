@@ -222,7 +222,9 @@ RUN apt-get update \
     && curl -fsSL https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}.tgz \
        | tar xz -C /tmp \
     && cp /tmp/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}/lib/*.so* /usr/lib/ \
-    && rm -rf /tmp/onnxruntime-linux-x64-gpu-*
+    && rm -rf /tmp/onnxruntime-linux-x64-gpu-* \
+    # Symlink fuer Go onnxruntime_go Binding (erwartet onnxruntime.so ohne lib-Prefix)
+    && ln -sf /usr/lib/libonnxruntime.so /usr/lib/onnxruntime.so
 COPY --from=archive /bin /usr/bin
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --from=archive /lib/ollama /usr/lib/ollama

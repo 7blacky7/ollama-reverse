@@ -19,10 +19,11 @@ RUN yum install -y yum-utils \
     && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
 ENV PATH=/opt/rh/gcc-toolset-10/root/usr/bin:$PATH
 ARG VULKANVERSION
-RUN wget https://sdk.lunarg.com/sdk/download/${VULKANVERSION}/linux/vulkansdk-linux-x86_64-${VULKANVERSION}.tar.xz -O /tmp/vulkansdk-linux-x86_64-${VULKANVERSION}.tar.xz \
+RUN dnf upgrade -y --refresh \
+    && wget https://sdk.lunarg.com/sdk/download/${VULKANVERSION}/linux/vulkansdk-linux-x86_64-${VULKANVERSION}.tar.xz -O /tmp/vulkansdk-linux-x86_64-${VULKANVERSION}.tar.xz \
     && tar xvf /tmp/vulkansdk-linux-x86_64-${VULKANVERSION}.tar.xz \
     && dnf -y install ninja-build \
-    && ln -s /usr/bin/python3 /usr/bin/python \  
+    && ln -s /usr/bin/python3 /usr/bin/python \
     && /${VULKANVERSION}/vulkansdk -j 8 vulkan-headers \
     && /${VULKANVERSION}/vulkansdk -j 8 shaderc
 RUN cp -r /${VULKANVERSION}/x86_64/include/* /usr/local/include/ \
@@ -31,7 +32,8 @@ ENV PATH=/${VULKANVERSION}/x86_64/bin:$PATH
 
 FROM --platform=linux/arm64 almalinux:8 AS base-arm64
 # install epel-release for ccache
-RUN yum install -y yum-utils epel-release \
+RUN dnf upgrade -y --refresh \
+    && yum install -y yum-utils epel-release \
     && dnf install -y clang ccache git \
     && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/sbsa/cuda-rhel8.repo
 ENV CC=clang CXX=clang++

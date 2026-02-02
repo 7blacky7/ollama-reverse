@@ -118,16 +118,18 @@ func NewOnnxEncoder(modelPath string, loadOpts vision.LoadOptions) (*OnnxEncoder
 		return nil, fmt.Errorf("%w: %v", ErrSessionCreate, err)
 	}
 
-	// Bildgroesse dynamisch aus Modell lesen (Fallback: 224)
+	// Bildgroesse und Embedding-Dim dynamisch aus Modell lesen
 	imageSize := session.GetImageSize()
+	embeddingDim := session.GetEmbeddingDim()
 	opts.ImageSize = imageSize
+	opts.EmbeddingDim = embeddingDim
 
 	return &OnnxEncoder{
 		session: session,
 		info: vision.ModelInfo{
 			Name:         "nomic-embed-vision-onnx",
 			Type:         "onnx",
-			EmbeddingDim: opts.EmbeddingDim,
+			EmbeddingDim: embeddingDim,
 			ImageSize:    imageSize,
 		},
 		opts:   opts,

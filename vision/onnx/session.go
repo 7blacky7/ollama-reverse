@@ -47,11 +47,12 @@ func DestroyRuntime() error {
 
 // Session verwaltet eine ONNX Runtime Inference Session.
 type Session struct {
-	inner      *ort.DynamicAdvancedSession
-	inputName  string
-	outputName string
-	opts       SessionOptions
-	inputShape []int64 // Dynamisch aus Modell gelesen [N, C, H, W]
+	inner       *ort.DynamicAdvancedSession
+	inputName   string
+	outputName  string
+	opts        SessionOptions
+	inputShape  []int64 // Dynamisch aus Modell gelesen [N, C, H, W]
+	outputShape []int64 // Dynamisch aus Modell gelesen [N, D]
 }
 
 // SessionOptions konfiguriert die ONNX Session
@@ -121,36 +122,46 @@ func CreateSession(modelPath string, opts SessionOptions) (*Session, error) {
 		// Bei Fehler: Fallback auf CPU (kein Error)
 	}
 
-	// Session erstellen
+	// Input/Output-Namen und Shapes aus Modell lesen
+	inputName := opts.InputName
+	outputName := opts.OutputName
+	var inputShape, outputShape []int64
+
+	if inputs, outputs, err := ort.GetInputOutputInfo(modelPath); err == nil {
+		// Ersten Input mit 4D Shape (NCHW) finden
+		for _, info := range inputs {
+			if len(info.Dimensions) >= 4 {
+				inputName = info.Name
+				inputShape = info.Dimensions
+				break
+			}
+		}
+		// Ersten Output finden (normalerweise [N, EmbeddingDim])
+		if len(outputs) > 0 {
+			outputName = outputs[0].Name
+			outputShape = outputs[0].Dimensions
+		}
+	}
+
+	// Session mit dynamisch erkannten Namen erstellen
 	inner, err := ort.NewDynamicAdvancedSession(
 		modelPath,
-		[]string{opts.InputName},
-		[]string{opts.OutputName},
+		[]string{inputName},
+		[]string{outputName},
 		sessOpts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("session erstellen: %w", err)
 	}
 
-	sess := &Session{
-		inner:      inner,
-		inputName:  opts.InputName,
-		outputName: opts.OutputName,
-		opts:       opts,
-		inputShape: nil,
-	}
-
-	// Input-Shape aus Modell-Datei lesen (nicht aus Session)
-	if inputs, _, err := ort.GetInputOutputInfo(modelPath); err == nil {
-		for _, info := range inputs {
-			if info.Name == opts.InputName && len(info.Dimensions) >= 4 {
-				sess.inputShape = info.Dimensions
-				break
-			}
-		}
-	}
-
-	return sess, nil
+	return &Session{
+		inner:       inner,
+		inputName:   inputName,
+		outputName:  outputName,
+		opts:        opts,
+		inputShape:  inputShape,
+		outputShape: outputShape,
+	}, nil
 }
 
 // GetImageSize extrahiert die Bildgroesse aus der Input-Shape.
@@ -166,6 +177,20 @@ func (s *Session) GetImageSize() int {
 	}
 	// Fallback: 224 ist Standard fuer die meisten Vision Transformer
 	return 224
+}
+
+// GetEmbeddingDim extrahiert die Embedding-Dimension aus der Output-Shape.
+// Erwartet Format [N, D] oder [N, SeqLen, D], gibt D zurueck.
+// Bei Fehler: Fallback auf 768 (Standard fuer ViT-Base)
+func (s *Session) GetEmbeddingDim() int {
+	if len(s.outputShape) >= 2 {
+		// Letzte Dimension ist typischerweise die Embedding-Dim
+		d := s.outputShape[len(s.outputShape)-1]
+		if d > 0 && d <= 4096 {
+			return int(d)
+		}
+	}
+	return 768
 }
 
 // ============================================================================

@@ -20,7 +20,7 @@ import (
 const (
 	DefaultHubURL        = "https://huggingface.co"
 	DefaultAPIURL        = "https://huggingface.co/api"
-	DefaultClientTimeout = 30
+	DefaultClientTimeout = 1800 // 30 Minuten fuer grosse Model-Downloads
 	EnvHFToken           = "HF_TOKEN"
 	EnvHFHome            = "HF_HOME"
 	EnvHFEndpoint        = "HF_ENDPOINT"

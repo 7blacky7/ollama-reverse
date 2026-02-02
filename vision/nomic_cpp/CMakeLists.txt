@@ -45,6 +45,7 @@ target_include_directories(nomic
         ${CMAKE_SOURCE_DIR}/ml/backend/ggml/ggml/include
         ${CMAKE_SOURCE_DIR}/ml/backend/ggml/ggml/src
         ${CMAKE_SOURCE_DIR}/ml/backend/ggml/ggml/src/include
+        ${CMAKE_SOURCE_DIR}/ml/backend/ggml/ggml/src/ggml-cpu
 )
 
 # GGML Libraries - ggml-base ist das Haupt-Target im Ollama Build

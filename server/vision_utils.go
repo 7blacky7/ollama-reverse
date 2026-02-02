@@ -1,4 +1,3 @@
-//go:build vision
 // MODUL: vision_utils
 // ZWECK: Utility-Funktionen fuer die Vision API (Base64, Vektoroperationen, Validierung)
 // INPUT: Base64-Strings, float32-Vektoren, Bild-Bytes

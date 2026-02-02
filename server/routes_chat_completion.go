@@ -34,7 +34,7 @@ func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequ
 		structuredOutputsState_Applying
 	)
 
-	structuredOutputsState := structuredOutputsState_None
+	var structuredOutputsState structuredOutputsState = structuredOutputsState_None
 
 	for {
 		var tb strings.Builder

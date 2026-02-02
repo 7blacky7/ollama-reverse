@@ -1,4 +1,3 @@
-//go:build vision
 // MODUL: routes_vision
 // ZWECK: REST API Definitionen und VisionHandler-Struktur fuer Vision Embedding Endpoints
 // INPUT: HTTP Requests mit Base64-Bildern und Modell-Namen

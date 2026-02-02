@@ -1,4 +1,3 @@
-//go:build vision_types
 
 // MODUL: types_vision
 // ZWECK: REST API Types fuer generische Vision Encoder (CLIP, SigLIP, etc.)

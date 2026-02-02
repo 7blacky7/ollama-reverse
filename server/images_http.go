@@ -1,11 +1,10 @@
-//go:build vision
 // Package server - HTTP-Utilities für Registry-Operationen
 //
 // Diese Datei enthält:
 // - HTTP-Request-Funktionen (makeRequest, makeRequestWithRetry)
 // - SHA256-Digest-Berechnung
 // - Blob-Verifizierung
-// - Registry-Challenge-Parsing
+// HINWEIS: registryChallenge ist in auth.go definiert
 package server
 
 import (
@@ -30,13 +29,6 @@ import (
 
 var errUnauthorized = errors.New("unauthorized: access denied")
 var errDigestMismatch = errors.New("digest mismatch, file must be downloaded again")
-
-// registryChallenge enthält die Daten aus dem www-authenticate Header
-type registryChallenge struct {
-	Realm   string
-	Service string
-	Scope   string
-}
 
 // testMakeRequestDialContext ermöglicht das Überschreiben der Dial-Funktion für Tests.
 // Kann z.B. Model-Namen wie "example.com/my/model" auf "127.0.0.1:1234" umleiten.

@@ -1,15 +1,21 @@
+// =============================================================================
+// Modul: cogito.go
+// Beschreibung: Cogito-Parser für Tool-Calls und Thinking-Support.
+//               Verwendet spezielle Unicode-Tags für Tool-Call-Erkennung.
+//               Die State-Machine (eat) befindet sich in cogito_eat.go.
+// =============================================================================
+
 package parsers
 
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"strings"
-	"unicode"
 
 	"github.com/ollama/ollama/api"
 )
 
+// Parser-State-Enum für den Cogito-Parser
 type CogitoParserState int
 
 const (
@@ -19,6 +25,7 @@ const (
 	CogitoCollectingToolOutput
 )
 
+// Tag-Konstanten für Cogito-spezifische Markup-Erkennung
 const (
 	cogitoThinkingCloseTag    = "</think>"
 	cogitoToolCallsBeginTag   = "<｜tool▁calls▁begin｜>"
@@ -32,25 +39,31 @@ const (
 	cogitoToolOutputsEndTag   = "<｜tool▁outputs▁end｜>"
 )
 
+// CogitoParser implementiert das Parser-Interface für Cogito-Modelle.
+// Unterstützt sowohl Tool-Calls als auch Thinking-Mode.
 type CogitoParser struct {
 	state  CogitoParserState
 	buffer strings.Builder
 }
 
+// HasToolSupport gibt true zurück - Cogito unterstützt Tool-Calls
 func (p *CogitoParser) HasToolSupport() bool {
 	return true
 }
 
+// HasThinkingSupport gibt true zurück - Cogito unterstützt Thinking
 func (p *CogitoParser) HasThinkingSupport() bool {
 	return true
 }
 
+// setInitialState setzt den initialen Parser-State basierend auf Kontext.
+// Berücksichtigt: Prefill, Thinking-Einstellung, Tool-Verfügbarkeit.
 func (p *CogitoParser) setInitialState(lastMessage *api.Message, tools []api.Tool, thinkValue *api.ThinkValue) {
 	prefill := lastMessage != nil && lastMessage.Role == "assistant"
 
-	// Check both model capability AND request preference
+	// Prüfe sowohl Model-Capability ALS AUCH Request-Preference
 	thinkingEnabled := thinkValue != nil && thinkValue.Bool()
-	// thinkingEnabled should be set to false for tools
+	// thinkingEnabled sollte für Tools auf false gesetzt sein
 
 	if !thinkingEnabled {
 		p.state = CogitoCollectingContent
@@ -62,7 +75,7 @@ func (p *CogitoParser) setInitialState(lastMessage *api.Message, tools []api.Too
 		return
 	}
 
-	// Note: for cogito, if there are tools, then we don't want to be thinking
+	// Hinweis: Bei Cogito mit Tools wollen wir nicht denken
 	if len(tools) > 0 {
 		p.state = CogitoCollectingContent
 		return
@@ -71,31 +84,38 @@ func (p *CogitoParser) setInitialState(lastMessage *api.Message, tools []api.Too
 	p.state = CogitoCollectingThinking
 }
 
+// Init initialisiert den Parser mit Tools und optionaler letzter Nachricht
 func (p *CogitoParser) Init(tools []api.Tool, lastMessage *api.Message, thinkValue *api.ThinkValue) []api.Tool {
 	p.setInitialState(lastMessage, tools, thinkValue)
 	return tools
 }
 
+// Event-Interface für typsichere Event-Verarbeitung
 type cogitoEvent interface {
 	isCogitoEvent()
 }
 
+// cogitoEventThinkingContent repräsentiert ein Thinking-Content-Event
 type cogitoEventThinkingContent struct {
 	content string
 }
 
+// cogitoEventContent repräsentiert ein normales Content-Event
 type cogitoEventContent struct {
 	content string
 }
 
+// cogitoEventToolCall repräsentiert ein Tool-Call-Event
 type cogitoEventToolCall struct {
 	toolCall api.ToolCall
 }
 
+// Interface-Implementierungen für Event-Typen
 func (cogitoEventThinkingContent) isCogitoEvent() {}
 func (cogitoEventContent) isCogitoEvent()         {}
 func (cogitoEventToolCall) isCogitoEvent()        {}
 
+// Add verarbeitet eingehenden Stream-Content und gibt Content, Thinking und Tool-Calls zurück
 func (p *CogitoParser) Add(s string, done bool) (content string, thinking string, calls []api.ToolCall, err error) {
 	p.buffer.WriteString(s)
 	events := p.parseEvents()
@@ -117,12 +137,14 @@ func (p *CogitoParser) Add(s string, done bool) (content string, thinking string
 	return contentSb.String(), thinkingSb.String(), toolCalls, nil
 }
 
+// parseEvents extrahiert alle verfügbaren Events aus dem Buffer
 func (p *CogitoParser) parseEvents() []cogitoEvent {
 	var all []cogitoEvent
 
 	keepLooping := true
 	for keepLooping {
 		var events []cogitoEvent
+		// eat() ist in cogito_eat.go implementiert
 		events, keepLooping = p.eat()
 		if len(events) > 0 {
 			all = append(all, events...)
@@ -132,166 +154,17 @@ func (p *CogitoParser) parseEvents() []cogitoEvent {
 	return all
 }
 
-func (p *CogitoParser) eat() ([]cogitoEvent, bool) {
-	var events []cogitoEvent
-	bufStr := p.buffer.String()
-	if bufStr == "" {
-		return events, false
-	}
-
-	switch p.state {
-	case CogitoCollectingThinking:
-		if strings.Contains(bufStr, cogitoThinkingCloseTag) { // thinking[</think>] -> content
-			split := strings.SplitN(bufStr, cogitoThinkingCloseTag, 2)
-			thinking := split[0]
-			thinking = strings.TrimRightFunc(thinking, unicode.IsSpace)
-
-			remaining := split[1]
-			remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
-
-			p.buffer.Reset()
-			p.buffer.WriteString(remaining)
-			p.state = CogitoCollectingContent
-
-			if len(thinking) > 0 {
-				events = append(events, cogitoEventThinkingContent{content: thinking})
-			}
-			return events, true
-		} else if overlapLen := overlap(bufStr, cogitoThinkingCloseTag); overlapLen > 0 { // partial </think>
-			beforePartialTag := bufStr[:len(bufStr)-overlapLen]
-			trailingLen := trailingWhitespaceLen(beforePartialTag)
-			ambiguousStart := len(beforePartialTag) - trailingLen
-
-			unambiguous := bufStr[:ambiguousStart]
-			ambiguous := bufStr[ambiguousStart:]
-			p.buffer.Reset()
-			p.buffer.WriteString(ambiguous)
-			if len(unambiguous) > 0 {
-				events = append(events, cogitoEventThinkingContent{content: unambiguous})
-			}
-			return events, false
-		} else { // otherwise its thinking content
-			whitespaceLen := trailingWhitespaceLen(bufStr)
-			ambiguousStart := len(bufStr) - whitespaceLen
-
-			unambiguous := bufStr[:ambiguousStart]
-			ambiguous := bufStr[ambiguousStart:]
-			p.buffer.Reset()
-			p.buffer.WriteString(ambiguous)
-			if len(unambiguous) > 0 {
-				events = append(events, cogitoEventThinkingContent{content: unambiguous})
-			}
-			return events, false
-		}
-
-	case CogitoCollectingContent:
-		switch {
-		case strings.Contains(bufStr, cogitoToolCallsBeginTag): // content[<｜tool▁calls▁begin｜>] -> tool calls
-			split := strings.SplitN(bufStr, cogitoToolCallsBeginTag, 2)
-			contentBefore := strings.TrimRightFunc(split[0], unicode.IsSpace)
-			remaining := split[1]
-
-			p.buffer.Reset()
-			p.buffer.WriteString(remaining)
-			p.state = CogitoCollectingToolCalls
-
-			if len(contentBefore) > 0 {
-				events = append(events, cogitoEventContent{content: contentBefore})
-			}
-			return events, true
-		case strings.Contains(bufStr, cogitoToolOutputsBeginTag): // content[<｜tool▁outputs▁begin｜>] -> tool outputs
-			split := strings.SplitN(bufStr, cogitoToolOutputsBeginTag, 2)
-			contentBefore := strings.TrimRightFunc(split[0], unicode.IsSpace)
-			remaining := split[1]
-
-			p.buffer.Reset()
-			p.buffer.WriteString(remaining)
-			p.state = CogitoCollectingToolOutput
-
-			if len(contentBefore) > 0 {
-				events = append(events, cogitoEventContent{content: contentBefore})
-			}
-			return events, true
-		default: // otherwise its content
-			p.buffer.Reset()
-			if len(bufStr) > 0 {
-				events = append(events, cogitoEventContent{content: bufStr})
-			}
-			return events, false
-		}
-	case CogitoCollectingToolCalls:
-		if idx := strings.Index(bufStr, cogitoToolCallBeginTag); idx != -1 {
-			startIdx := idx + len(cogitoToolCallBeginTag)
-			if endIdx := strings.Index(bufStr[startIdx:], cogitoToolCallEndTag); endIdx != -1 {
-				toolCallContent := bufStr[startIdx : startIdx+endIdx]
-
-				if toolCall, err := p.parseToolCallContent(toolCallContent); err == nil {
-					remaining := bufStr[startIdx+endIdx+len(cogitoToolCallEndTag):]
-					remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
-
-					p.buffer.Reset()
-					p.buffer.WriteString(remaining)
-
-					events = append(events, cogitoEventToolCall{toolCall: toolCall})
-					return events, true
-				} else {
-					slog.Warn("cogito tool call parsing failed", "error", err)
-				}
-			}
-		}
-
-		if idx := strings.Index(bufStr, cogitoToolCallsEndTag); idx != -1 {
-			remaining := bufStr[idx+len(cogitoToolCallsEndTag):]
-			remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
-
-			p.buffer.Reset()
-			p.buffer.WriteString(remaining)
-			p.state = CogitoCollectingContent
-
-			return events, true
-		}
-
-		return events, false
-
-	case CogitoCollectingToolOutput:
-		if idx := strings.Index(bufStr, cogitoToolOutputBeginTag); idx != -1 {
-			startIdx := idx + len(cogitoToolOutputBeginTag)
-			if endIdx := strings.Index(bufStr[startIdx:], cogitoToolOutputEndTag); endIdx != -1 {
-				remaining := bufStr[startIdx+endIdx+len(cogitoToolOutputEndTag):]
-				remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
-
-				p.buffer.Reset()
-				p.buffer.WriteString(remaining)
-
-				return events, true
-			}
-		}
-
-		if idx := strings.Index(bufStr, cogitoToolOutputsEndTag); idx != -1 {
-			remaining := bufStr[idx+len(cogitoToolOutputsEndTag):]
-			remaining = strings.TrimLeftFunc(remaining, unicode.IsSpace)
-
-			p.buffer.Reset()
-			p.buffer.WriteString(remaining)
-			p.state = CogitoCollectingContent
-
-			return events, true
-		}
-
-		return events, false
-	}
-
-	return events, false
-}
-
+// parseToolCallContent parst den Inhalt eines einzelnen Tool-Calls.
+// Erwartetes Format: function<｜tool▁sep｜>tool_name\n```json\n{args}\n```
 func (p *CogitoParser) parseToolCallContent(content string) (api.ToolCall, error) {
-	// Expected format: function<｜tool▁sep｜>tool_name\n```json\n{args}\n```
+	// Trenne am Separator-Tag
 	parts := strings.SplitN(content, cogitoToolSepTag, 2)
 	if len(parts) < 2 {
 		return api.ToolCall{}, errors.New("invalid format")
 	}
 	nameAndArgs := parts[1]
 
+	// Finde JSON-Block
 	jsonStart := strings.Index(nameAndArgs, "\n```json\n")
 	if jsonStart == -1 {
 		return api.ToolCall{}, errors.New("invalid format")
@@ -299,12 +172,14 @@ func (p *CogitoParser) parseToolCallContent(content string) (api.ToolCall, error
 	toolName := strings.TrimSpace(nameAndArgs[:jsonStart])
 	jsonContent := nameAndArgs[jsonStart+len("\n```json\n"):]
 
+	// Finde Ende des JSON-Blocks
 	jsonEnd := strings.Index(jsonContent, "\n```")
 	if jsonEnd == -1 {
 		return api.ToolCall{}, errors.New("invalid format")
 	}
 	argsJSON := jsonContent[:jsonEnd]
 
+	// Parse JSON-Argumente
 	var args api.ToolCallFunctionArguments
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return api.ToolCall{}, err

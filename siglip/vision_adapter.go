@@ -1,10 +1,12 @@
+// ============================================================================
 // MODUL: vision_adapter
 // ZWECK: Adapter zur Integration von SigLIP in das vision.VisionEncoder Interface
 // INPUT: Modell-Pfad, LoadOptions, Bilddaten ([]byte)
 // OUTPUT: VisionEncoder-kompatible Embeddings ([]float32)
 // NEBENEFFEKTE: Laedt SigLIP-Modell, alloziert Speicher
-// ABHAENGIGKEITEN: siglip/model.go, siglip/encode.go, vision/factory.go
+// ABHAENGIGKEITEN: siglip/model.go, siglip/embedding.go, vision/factory.go
 // HINWEISE: Wrapper-Pattern - delegiert an existierendes Model
+// ============================================================================
 
 package siglip
 

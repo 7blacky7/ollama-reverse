@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-SigLIP HuggingFace -> GGUF Konverter
+MODUL: convert_siglip.py
+ZWECK: Konvertiert SigLIP Vision Encoder von HuggingFace zu GGUF-Format
+INPUT: HuggingFace Modell-ID, Quantisierungstyp, Output-Pfad (CLI)
+OUTPUT: GGUF-Datei mit konvertiertem Modell
+NEBENEFFEKTE: Laedt Modell von HuggingFace, schreibt GGUF-Datei
+ABHAENGIGKEITEN: gguf_writer.py (intern), torch, transformers, numpy
+HINWEISE: Embeddings und Normalisierungen werden immer als F32 gespeichert
 
-Konvertiert SigLIP Vision Encoder Modelle von HuggingFace in GGUF-Format
-für die Verwendung mit llama.cpp/ollama-reverse.
-
-Unterstützte Modelle:
+Unterstuetzte Modelle:
 - google/siglip-base-patch16-224   (ViT-B/16, 86M params)
 - google/siglip-large-patch16-256  (ViT-L/16, 303M params)
 - google/siglip-so400m-patch14-384 (ViT-SO400M, 400M params)

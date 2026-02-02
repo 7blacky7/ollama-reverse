@@ -1,29 +1,13 @@
-// Package siglip provides Go bindings for the SigLIP Vision Encoder.
-//
-// SigLIP (Sigmoid Loss for Language Image Pre-Training) ist ein Vision Transformer
-// zur Generierung von Image-Embeddings. Diese Bindings wrappen die C-Implementation
-// aus llama.cpp/src/siglip.h.
-//
-// Verwendung:
-//
-//	model, err := siglip.LoadModel("siglip-vit-b.gguf")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	defer model.Close()
-//
-//	embedding, err := model.Encode(imageData)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//
-//	floats := embedding.ToFloat32()
-//
-// Diese Datei enthaelt:
-// - Model Struct: Repraesentiert ein geladenes SigLIP-Modell
-// - LoadModel: Laedt ein Modell aus einer GGUF-Datei
-// - Close: Gibt das Modell frei
-// - Getter-Methoden: EmbeddingDim, ImageSize, ModelType, ModelName
+// ============================================================================
+// MODUL: model
+// ZWECK: SigLIP Model-Verwaltung und Initialisierung
+// INPUT: GGUF-Modell-Pfad, Konfigurationsoptionen
+// OUTPUT: Geladenes Model, Embeddings
+// NEBENEFFEKTE: Laedt nativen Code, alloziert Speicher
+// ABHAENGIGKEITEN: siglip.h (C-Library), types.go
+// HINWEISE: CGO Flags sind NUR hier definiert
+// ============================================================================
+
 package siglip
 
 /*
@@ -49,24 +33,27 @@ import (
 // ============================================================================
 
 // Model repraesentiert ein geladenes SigLIP-Modell.
+// Thread-safe durch internen Mutex.
 type Model struct {
-	ctx    *C.struct_siglip_ctx
-	mu     sync.Mutex
-	closed bool
+	ctx    *C.struct_siglip_ctx // C-Kontext
+	mu     sync.Mutex           // Thread-Safety
+	closed bool                 // Status-Flag
 
-	// Cached Info
-	embeddingDim int
-	imageSize    int
-	modelType    ModelType
-	modelName    string
+	// Gecachte Metadaten
+	embeddingDim int       // Embedding-Dimension
+	imageSize    int       // Erwartete Bildgroesse
+	modelType    ModelType // Modell-Variante
+	modelName    string    // Modell-Name
 }
 
 // ============================================================================
-// LoadModel
+// LoadModel - Modell aus GGUF-Datei laden
 // ============================================================================
 
 // LoadModel laedt ein SigLIP-Modell aus einer GGUF-Datei.
+// Optionale Konfiguration ueber Functional Options.
 func LoadModel(path string, opts ...Option) (*Model, error) {
+	// Standard-Optionen mit uebergebenen Optionen zusammenfuehren
 	o := defaultOptions()
 	for _, opt := range opts {
 		opt(o)
@@ -98,7 +85,7 @@ func LoadModel(path string, opts ...Option) (*Model, error) {
 		return nil, ErrModelNotLoaded
 	}
 
-	// Model erstellen
+	// Model-Instanz erstellen
 	m := &Model{
 		ctx:          ctx,
 		embeddingDim: int(C.siglip_get_embedding_dim(ctx)),
@@ -119,10 +106,11 @@ func LoadModel(path string, opts ...Option) (*Model, error) {
 }
 
 // ============================================================================
-// Close
+// Close - Modell freigeben
 // ============================================================================
 
-// Close gibt das Modell frei.
+// Close gibt das Modell frei und setzt alle Ressourcen zurueck.
+// Thread-safe, kann mehrfach aufgerufen werden.
 func (m *Model) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -166,5 +154,106 @@ func (m *Model) ModelName() string {
 	return m.modelName
 }
 
-// Hinweis: Global Functions (Version, BuildInfo, SystemInfo, SetLogLevel,
-// GetLastError, ClearError, BackendAvailable, AvailableBackends) sind in utils.go
+// ============================================================================
+// Functional Options
+// ============================================================================
+
+// Option ist eine funktionale Option fuer LoadModel.
+type Option func(*options)
+
+// options speichert die Modell-Konfiguration.
+type options struct {
+	backend     Backend
+	logLevel    LogLevel
+	embedFormat EmbedFormat
+	nThreads    int
+	nGPULayers  int
+	mainGPU     int
+	useMmap     bool
+	useMlock    bool
+	batchSize   int
+}
+
+// defaultOptions gibt die Standard-Konfiguration zurueck.
+func defaultOptions() *options {
+	const (
+		defaultGPULayers = -1 // Alle Layer auf GPU
+		defaultMainGPU   = 0
+		defaultBatchSize = 1
+	)
+
+	return &options{
+		backend:     BackendCPU,
+		logLevel:    LogInfo,
+		embedFormat: EmbedF32,
+		nThreads:    runtime.NumCPU(),
+		nGPULayers:  defaultGPULayers,
+		mainGPU:     defaultMainGPU,
+		useMmap:     true,
+		useMlock:    false,
+		batchSize:   defaultBatchSize,
+	}
+}
+
+// WithBackend setzt das Compute-Backend.
+func WithBackend(backend Backend) Option {
+	return func(o *options) {
+		o.backend = backend
+	}
+}
+
+// WithLogLevel setzt das Log-Level.
+func WithLogLevel(level LogLevel) Option {
+	return func(o *options) {
+		o.logLevel = level
+	}
+}
+
+// WithEmbedFormat setzt das Embedding-Format.
+func WithEmbedFormat(format EmbedFormat) Option {
+	return func(o *options) {
+		o.embedFormat = format
+	}
+}
+
+// WithThreads setzt die Anzahl der CPU-Threads.
+func WithThreads(n int) Option {
+	return func(o *options) {
+		o.nThreads = n
+	}
+}
+
+// WithGPULayers setzt die Anzahl der GPU-Layers (-1 fuer alle).
+func WithGPULayers(n int) Option {
+	return func(o *options) {
+		o.nGPULayers = n
+	}
+}
+
+// WithMainGPU setzt den Haupt-GPU Index.
+func WithMainGPU(gpu int) Option {
+	return func(o *options) {
+		o.mainGPU = gpu
+	}
+}
+
+// WithMmap aktiviert/deaktiviert Memory-Mapping.
+func WithMmap(enabled bool) Option {
+	return func(o *options) {
+		o.useMmap = enabled
+	}
+}
+
+// WithMlock aktiviert/deaktiviert Memory-Locking.
+func WithMlock(enabled bool) Option {
+	return func(o *options) {
+		o.useMlock = enabled
+	}
+}
+
+// WithBatchSize setzt die Batch-Groesse.
+func WithBatchSize(size int) Option {
+	return func(o *options) {
+		o.batchSize = size
+	}
+}

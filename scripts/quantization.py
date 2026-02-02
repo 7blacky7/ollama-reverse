@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Quantisierungs-Funktionen für GGUF-Konvertierung
+MODUL: quantization.py
+ZWECK: Quantisierung von Float32-Tensoren in niedrigere Praezisionsformate (Q8_0, Q4_K)
+INPUT: NumPy-Arrays mit Float32-Werten
+OUTPUT: Quantisierte Bytes oder dequantisierte NumPy-Arrays
+NEBENEFFEKTE: Keine
+ABHAENGIGKEITEN: numpy, struct (stdlib)
+HINWEISE: Block-basierte Quantisierung - Datenlaenge muss auf Blockgroesse aufgefuellt werden
 
-Dieses Modul enthält Funktionen zur Quantisierung von Float32-Tensoren
-in verschiedene niedrigere Präzisionsformate für effiziente Inference.
-
-Unterstützte Formate:
-- Q8_0:   8-bit mit Block-Scale (32 Elemente pro Block)
-- Q4_K_M: 4-bit mit K-Quants (256 Elemente pro Super-Block)
+Unterstuetzte Formate:
+- Q8_0:   8-bit mit Block-Scale (32 Elemente pro Block, 34 Bytes/Block)
+- Q4_K_M: 4-bit mit K-Quants (256 Elemente pro Super-Block, 144 Bytes/Block)
 """
 
 import struct

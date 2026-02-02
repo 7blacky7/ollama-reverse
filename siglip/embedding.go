@@ -1,3 +1,13 @@
+// ============================================================================
+// MODUL: embedding
+// ZWECK: Embedding-Datenstruktur und mathematische Operationen
+// INPUT: C-Embedding-Pointer, andere Embeddings
+// OUTPUT: Embedding-Vektoren ([]float32), Similarity-Scores
+// NEBENEFFEKTE: Alloziert Speicher
+// ABHAENGIGKEITEN: utils.go (sqrt64)
+// HINWEISE: Encoding-Funktionen sind in encode.go
+// ============================================================================
+
 package siglip
 
 /*
@@ -11,21 +21,21 @@ import (
 )
 
 // ============================================================================
-// Embedding - SigLIP Image-Embedding Datenstruktur und Operationen
+// Embedding Struct
 // ============================================================================
-//
-// Dieses Modul enthaelt:
-// - Embedding Struct fuer Image-Embeddings
-// - Konvertierung zwischen C und Go Embeddings
-// - Mathematische Operationen (Normalisierung, Cosine Similarity, Dot Product)
 
-// Embedding repraesentiert ein SigLIP Image-Embedding
+// Embedding repraesentiert ein SigLIP Image-Embedding.
 type Embedding struct {
-	data       []float32
-	normalized bool
+	data       []float32 // Embedding-Vektor
+	normalized bool      // L2-normalisiert?
 }
 
-// newEmbeddingFromC erstellt ein Go-Embedding aus einem C-Embedding
+// ============================================================================
+// Embedding - Konstruktor aus C
+// ============================================================================
+
+// newEmbeddingFromC erstellt ein Go-Embedding aus einem C-Embedding.
+// Gibt den C-Speicher automatisch frei.
 func newEmbeddingFromC(cEmb *C.struct_siglip_embedding) *Embedding {
 	if cEmb == nil {
 		return nil
@@ -37,9 +47,11 @@ func newEmbeddingFromC(cEmb *C.struct_siglip_embedding) *Embedding {
 		normalized: bool(cEmb.normalized),
 	}
 
-	// Daten kopieren
+	// Daten kopieren (float32 = 4 Bytes)
+	const float32Size = 4
 	for i := 0; i < size; i++ {
-		emb.data[i] = float32(*(*C.float)(unsafe.Pointer(uintptr(unsafe.Pointer(cEmb.data)) + uintptr(i*4))))
+		emb.data[i] = float32(*(*C.float)(unsafe.Pointer(
+			uintptr(unsafe.Pointer(cEmb.data)) + uintptr(i*float32Size))))
 	}
 
 	// C-Embedding freigeben
@@ -48,18 +60,21 @@ func newEmbeddingFromC(cEmb *C.struct_siglip_embedding) *Embedding {
 	return emb
 }
 
-// ToFloat32 gibt das Embedding als float32-Slice zurueck
+// ============================================================================
+// Embedding - Getter-Methoden
+// ============================================================================
+
+// ToFloat32 gibt das Embedding als float32-Slice zurueck (Kopie).
 func (e *Embedding) ToFloat32() []float32 {
 	if e == nil {
 		return nil
 	}
-	// Kopie zurueckgeben
 	result := make([]float32, len(e.data))
 	copy(result, e.data)
 	return result
 }
 
-// Size gibt die Dimension des Embeddings zurueck
+// Size gibt die Dimension des Embeddings zurueck.
 func (e *Embedding) Size() int {
 	if e == nil {
 		return 0
@@ -67,7 +82,7 @@ func (e *Embedding) Size() int {
 	return len(e.data)
 }
 
-// IsNormalized gibt zurueck ob das Embedding L2-normalisiert ist
+// IsNormalized gibt zurueck ob das Embedding L2-normalisiert ist.
 func (e *Embedding) IsNormalized() bool {
 	if e == nil {
 		return false
@@ -75,7 +90,22 @@ func (e *Embedding) IsNormalized() bool {
 	return e.normalized
 }
 
-// Normalize normalisiert das Embedding in-place (L2-Norm)
+// Clone erstellt eine Kopie des Embeddings.
+func (e *Embedding) Clone() *Embedding {
+	if e == nil {
+		return nil
+	}
+	return &Embedding{
+		data:       e.ToFloat32(),
+		normalized: e.normalized,
+	}
+}
+
+// ============================================================================
+// Embedding - Mathematische Operationen
+// ============================================================================
+
+// Normalize normalisiert das Embedding in-place (L2-Norm).
 func (e *Embedding) Normalize() {
 	if e == nil || len(e.data) == 0 {
 		return
@@ -95,7 +125,8 @@ func (e *Embedding) Normalize() {
 	e.normalized = true
 }
 
-// CosineSimilarity berechnet die Cosine Similarity zwischen zwei Embeddings
+// CosineSimilarity berechnet die Cosine Similarity zwischen zwei Embeddings.
+// Gibt 0 zurueck bei nil oder unterschiedlichen Dimensionen.
 func (e *Embedding) CosineSimilarity(other *Embedding) float32 {
 	if e == nil || other == nil {
 		return 0
@@ -119,7 +150,7 @@ func (e *Embedding) CosineSimilarity(other *Embedding) float32 {
 	return dot / (float32(sqrt64(float64(normA))) * float32(sqrt64(float64(normB))))
 }
 
-// DotProduct berechnet das Skalarprodukt zwischen zwei Embeddings
+// DotProduct berechnet das Skalarprodukt zwischen zwei Embeddings.
 func (e *Embedding) DotProduct(other *Embedding) float32 {
 	if e == nil || other == nil {
 		return 0
@@ -135,16 +166,4 @@ func (e *Embedding) DotProduct(other *Embedding) float32 {
 	}
 
 	return dot
-}
-
-// Clone erstellt eine Kopie des Embeddings
-func (e *Embedding) Clone() *Embedding {
-	if e == nil {
-		return nil
-	}
-
-	return &Embedding{
-		data:       e.ToFloat32(),
-		normalized: e.normalized,
-	}
 }

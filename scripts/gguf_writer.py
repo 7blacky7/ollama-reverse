@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-GGUF Writer - Serialisierung für GGUF-Format
+MODUL: gguf_writer.py
+ZWECK: Serialisierung von ML-Modellen im GGUF-Format (GGML Universal Format)
+INPUT: Metadaten-Dict, Tensor-Liste mit Namen, NumPy-Daten und GGML-Typ
+OUTPUT: Binaere GGUF-Datei auf Dateisystem
+NEBENEFFEKTE: Schreibt GGUF-Datei an angegebenen Pfad
+ABHAENGIGKEITEN: quantization.py (intern), numpy, struct, pathlib (stdlib)
+HINWEISE: GGUF v3 Format - kompatibel mit llama.cpp und ollama
 
-Dieses Modul enthält die GGUFWriter-Klasse und alle GGUF/GGML Konstanten
-für die Serialisierung von Machine Learning Modellen im GGUF-Format.
-
-Das GGUF-Format (GGML Universal Format) ist ein Dateiformat für
-quantisierte ML-Modelle, entwickelt für llama.cpp und kompatible Tools.
+Das GGUF-Format ist ein Dateiformat fuer quantisierte ML-Modelle,
+entwickelt fuer llama.cpp und kompatible Inference-Engines.
+Struktur: Header -> Metadaten -> Tensor-Infos -> Tensor-Daten (aligned)
 """
 
 import struct

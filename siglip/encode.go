@@ -1,3 +1,13 @@
+// ============================================================================
+// MODUL: encode
+// ZWECK: Encoding-Funktionen fuer Bilder zu Embeddings
+// INPUT: Bilddaten ([]byte), RGB-Rohdaten
+// OUTPUT: Embedding-Vektoren
+// NEBENEFFEKTE: Ruft C-Funktionen auf, alloziert Speicher
+// ABHAENGIGKEITEN: model.go, embedding.go, utils.go
+// HINWEISE: Methoden auf Model struct
+// ============================================================================
+
 package siglip
 
 /*
@@ -12,18 +22,11 @@ import (
 )
 
 // ============================================================================
-// Model Encoding - Methoden zur Bildkodierung
+// Model - Encode Methoden
 // ============================================================================
-//
-// Dieses Modul enthaelt:
-// - Encode: Einzelbild-Encoding aus Bytes (JPG, PNG, etc.)
-// - EncodeRaw: Encoding aus RGB-Rohdaten
-// - EncodeBatch: Batch-Encoding mehrerer Bilder
-// - BatchEncode: Convenience-Wrapper mit Progress-Callback
 
-// Encode generiert ein Embedding fuer ein Bild (Rohdaten)
-//
-// Das Bild wird als Byte-Array uebergeben (JPG, PNG, etc.)
+// Encode generiert ein Embedding fuer ein Bild (Rohdaten).
+// Unterstuetzt JPG, PNG und andere gaengige Formate.
 func (m *Model) Encode(image []byte) (*Embedding, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -36,14 +39,14 @@ func (m *Model) Encode(image []byte) (*Embedding, error) {
 		return nil, ErrInvalidImage
 	}
 
-	// Bild aus Speicher laden (via Base64-Workaround in utils.go)
+	// Bild aus Speicher laden (via Base64-Workaround)
 	cImg := loadImageFromMemory(image)
 	if cImg == nil {
 		return nil, ErrInvalidImage
 	}
 	defer C.siglip_image_free(cImg)
 
-	// Encoding
+	// Encoding durchfuehren
 	cEmb := C.siglip_encode(m.ctx, cImg)
 	if cEmb == nil {
 		errStr := C.siglip_get_last_error()
@@ -56,10 +59,8 @@ func (m *Model) Encode(image []byte) (*Embedding, error) {
 	return newEmbeddingFromC(cEmb), nil
 }
 
-// EncodeRaw generiert ein Embedding fuer ein Bild aus RGB-Rohdaten
-//
-// data: RGB uint8 Array (HWC Format)
-// width, height: Bildgroesse
+// EncodeRaw generiert ein Embedding fuer ein Bild aus RGB-Rohdaten.
+// data: RGB uint8 Array (HWC Format), width/height: Bildgroesse
 func (m *Model) EncodeRaw(data []byte, width, height int) (*Embedding, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -76,7 +77,8 @@ func (m *Model) EncodeRaw(data []byte, width, height int) (*Embedding, error) {
 	const rgbChannels = 3
 	expectedSize := width * height * rgbChannels
 	if len(data) < expectedSize {
-		return nil, fmt.Errorf("siglip: image data too small (expected %d, got %d)", expectedSize, len(data))
+		return nil, fmt.Errorf("siglip: image data too small (expected %d, got %d)",
+			expectedSize, len(data))
 	}
 
 	// C-Bild erstellen
@@ -91,7 +93,7 @@ func (m *Model) EncodeRaw(data []byte, width, height int) (*Embedding, error) {
 	}
 	defer C.siglip_image_free(cImg)
 
-	// Encoding
+	// Encoding durchfuehren
 	cEmb := C.siglip_encode(m.ctx, cImg)
 	if cEmb == nil {
 		errStr := C.siglip_get_last_error()
@@ -104,7 +106,7 @@ func (m *Model) EncodeRaw(data []byte, width, height int) (*Embedding, error) {
 	return newEmbeddingFromC(cEmb), nil
 }
 
-// EncodeBatch generiert Embeddings fuer mehrere Bilder
+// EncodeBatch generiert Embeddings fuer mehrere Bilder.
 func (m *Model) EncodeBatch(images [][]byte) ([]*Embedding, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -164,7 +166,7 @@ func (m *Model) EncodeBatch(images [][]byte) ([]*Embedding, error) {
 	return embeddings, nil
 }
 
-// extractBatchEmbeddings extrahiert Embeddings aus einem C-Batch-Ergebnis
+// extractBatchEmbeddings extrahiert Embeddings aus einem C-Batch-Ergebnis.
 func extractBatchEmbeddings(cEmb *C.struct_siglip_embedding, numImages int) []*Embedding {
 	embeddings := make([]*Embedding, numImages)
 	batchSize := int(cEmb.batch_size)
@@ -180,9 +182,11 @@ func extractBatchEmbeddings(cEmb *C.struct_siglip_embedding, numImages int) []*E
 		}
 
 		// Daten kopieren
-		srcPtr := unsafe.Pointer(uintptr(unsafe.Pointer(cEmb.data)) + uintptr(i*embSize*float32Size))
+		srcPtr := unsafe.Pointer(uintptr(unsafe.Pointer(cEmb.data)) +
+			uintptr(i*embSize*float32Size))
 		for j := 0; j < embSize; j++ {
-			emb.data[j] = *(*float32)(unsafe.Pointer(uintptr(srcPtr) + uintptr(j*float32Size)))
+			emb.data[j] = *(*float32)(unsafe.Pointer(uintptr(srcPtr) +
+				uintptr(j*float32Size)))
 		}
 
 		embeddings[i] = emb
@@ -191,7 +195,8 @@ func extractBatchEmbeddings(cEmb *C.struct_siglip_embedding, numImages int) []*E
 	return embeddings
 }
 
-// BatchEncode ist ein Convenience-Wrapper fuer Batch-Encoding mit Fehlerbehandlung
+// BatchEncode ist ein Convenience-Wrapper fuer Batch-Encoding mit Fehlerbehandlung.
+// onProgress wird fuer jeden verarbeiteten Bild aufgerufen.
 func (m *Model) BatchEncode(images [][]byte, onProgress func(current, total int)) ([]*Embedding, []error) {
 	embeddings := make([]*Embedding, len(images))
 	errors := make([]error, len(images))

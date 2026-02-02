@@ -125,11 +125,22 @@ func WithHTTPClient(client *http.Client) ClientOption {
 
 // NewClient erstellt einen neuen HuggingFace Hub Client
 func NewClient(options ...ClientOption) *Client {
+	// Transport mit Verbindungs-Timeouts aber ohne globalen Request-Timeout
+	// Damit laufen Downloads unbegrenzt solange Daten fliessen
+	transport := &http.Transport{
+		ResponseHeaderTimeout: 60 * time.Second,  // Max 60s auf Response Header warten
+		IdleConnTimeout:       90 * time.Second,  // Idle Connections schliessen
+		TLSHandshakeTimeout:   30 * time.Second,  // TLS Handshake Timeout
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 	c := &Client{
-		httpClient: &http.Client{Timeout: DefaultClientTimeout * time.Second},
-		baseURL:    DefaultHubURL,
-		apiURL:     DefaultAPIURL,
-		userAgent:  ClientUserAgent,
+		httpClient: &http.Client{
+			Transport: transport,
+			Timeout:   0, // Kein globaler Timeout - Downloads laufen unbegrenzt
+		},
+		baseURL:   DefaultHubURL,
+		apiURL:    DefaultAPIURL,
+		userAgent: ClientUserAgent,
 	}
 	if token := os.Getenv(EnvHFToken); token != "" {
 		c.token = token

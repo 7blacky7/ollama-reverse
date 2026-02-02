@@ -38,7 +38,6 @@ import (
 	"os"
 	"runtime"
 	"runtime/cgo"
-	"strings"
 	"unsafe"
 
 	_ "github.com/ollama/ollama/llama/llama.cpp/common"

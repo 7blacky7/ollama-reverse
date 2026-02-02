@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: embedding
 // ZWECK: Embedding-Datenstruktur und mathematische Operationen

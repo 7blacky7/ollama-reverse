@@ -1,5 +1,8 @@
+//go:build siglip
+
 // Package server implementiert die REST API Routes fuer SigLIP.
 // Diese Datei enthaelt die HTTP Handler Funktionen und Route-Registrierung.
+// Build-Tag: Nur mit -tags siglip kompiliert
 package server
 
 import (

@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: encode
 // ZWECK: Encoding-Funktionen fuer Bilder zu Embeddings

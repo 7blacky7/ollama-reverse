@@ -1,3 +1,4 @@
+//go:build siglip
 // MODUL: vision_register
 // ZWECK: Automatische Registrierung von SigLIP im vision.DefaultRegistry
 // INPUT: Keine (init-basiert)

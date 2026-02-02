@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: utils
 // ZWECK: Hilfsfunktionen, globale Funktionen und Similarity-Operationen

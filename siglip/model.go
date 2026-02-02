@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: model
 // ZWECK: SigLIP Model-Verwaltung und Initialisierung
@@ -11,8 +12,10 @@
 package siglip
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../llama.cpp/src
-#cgo LDFLAGS: -L${SRCDIR}/../../llama.cpp/build -lsiglip -lggml -lm -lstdc++
+#cgo CFLAGS: -I${SRCDIR}
+#cgo CFLAGS: -I${SRCDIR}/../ml/backend/ggml/ggml/include
+#cgo CFLAGS: -I${SRCDIR}/../llama.cpp.upstream/ggml/include
+#cgo LDFLAGS: -lm -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
 #cgo linux LDFLAGS: -lpthread
 

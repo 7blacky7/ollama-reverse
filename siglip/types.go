@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: types
 // ZWECK: Typ-Definitionen, Enums und Fehler fuer SigLIP

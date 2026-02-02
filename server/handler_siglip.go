@@ -1,5 +1,8 @@
+//go:build siglip
+
 // Package server implementiert die REST API Handler fuer SigLIP.
 // Diese Datei enthaelt den SigLIPHandler und ModelManager.
+// Build-Tag: Nur mit -tags siglip kompiliert
 package server
 
 import (

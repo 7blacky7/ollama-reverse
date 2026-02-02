@@ -1,3 +1,4 @@
+//go:build siglip
 // ============================================================================
 // MODUL: vision_adapter
 // ZWECK: Adapter zur Integration von SigLIP in das vision.VisionEncoder Interface

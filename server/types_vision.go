@@ -1,3 +1,5 @@
+//go:build vision_types
+
 // MODUL: types_vision
 // ZWECK: REST API Types fuer generische Vision Encoder (CLIP, SigLIP, etc.)
 // INPUT: Keine (Type-Definitionen)
@@ -5,6 +7,7 @@
 // NEBENEFFEKTE: Keine
 // ABHAENGIGKEITEN: Keine
 // HINWEISE: Verwendet fuer /api/vision/* Endpoints
+// BUILD-TAG: Nur mit -tags vision_types (Types bereits in routes_*.go definiert)
 
 package server
 

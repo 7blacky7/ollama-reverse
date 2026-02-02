@@ -18,8 +18,9 @@ import (
 
 // RegisterVisionRoutesGin registriert alle Vision API Endpoints im Gin-Router.
 // Wird von GenerateRoutes aufgerufen wenn das vision build tag aktiv ist.
-func RegisterVisionRoutesGin(r *gin.Engine, modelDir string) *VisionHandler {
+func RegisterVisionRoutesGin(r *gin.Engine, modelDir string) (*VisionHandler, *HFVisionHandler) {
 	handler := NewVisionHandler(modelDir)
+	hfHandler := NewHFVisionHandler(modelDir)
 
 	// Encoding Endpoints
 	r.POST("/api/vision/encode", ginWrapVision(handler.HandleEncode))
@@ -34,7 +35,13 @@ func RegisterVisionRoutesGin(r *gin.Engine, modelDir string) *VisionHandler {
 	// Info Endpoint
 	r.GET("/api/vision/info", ginWrapVision(handler.HandleInfo))
 
-	return handler
+	// HuggingFace Endpoints
+	r.POST("/api/vision/load/hf", ginWrapVision(hfHandler.handleLoadHFModel))
+	r.GET("/api/vision/models/hf", ginWrapVision(hfHandler.handleListHFModels))
+	r.GET("/api/vision/cache", ginWrapVision(hfHandler.handleCacheStatus))
+	r.DELETE("/api/vision/cache", ginWrapVision(hfHandler.handleClearCache))
+
+	return handler, hfHandler
 }
 
 // ginWrapVision konvertiert einen http.HandlerFunc zu einem gin.HandlerFunc.

@@ -27,9 +27,10 @@ var initVisionRoutes = func(r *gin.Engine) {
 		modelDir = filepath.Join(home, ".ollama", "vision-models")
 	}
 
-	handler := RegisterVisionRoutesGin(r, modelDir)
+	handler, hfHandler := RegisterVisionRoutesGin(r, modelDir)
 	slog.Info("Vision API aktiviert", "model_dir", modelDir)
 
 	// Handler fuer spaeteres Cleanup speichern
 	_ = handler
+	_ = hfHandler
 }

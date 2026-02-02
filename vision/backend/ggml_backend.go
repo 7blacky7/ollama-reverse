@@ -13,6 +13,8 @@ package backend
 #cgo CFLAGS: -I${SRCDIR}/../../ml/backend/ggml/ggml/src/ggml-cpu
 #cgo LDFLAGS: -L${SRCDIR}/../../build -lggml-base
 
+#include <stdlib.h>
+#include <string.h>
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
 
@@ -26,7 +28,7 @@ package backend
 #endif
 
 // Backend-Erstellung basierend auf Typ
-ggml_backend_t create_backend(const char* backend_type, int gpu_id, int n_threads) {
+static ggml_backend_t create_backend(const char* backend_type, int gpu_id, int n_threads) {
     ggml_backend_t backend = NULL;
 
     // CUDA Backend
@@ -52,6 +54,13 @@ ggml_backend_t create_backend(const char* backend_type, int gpu_id, int n_thread
     }
 
     return backend;
+}
+
+// Wrapper fuer ggml_backend_free (CGO kann opaque Typen nicht casten)
+static void free_backend(ggml_backend_t backend) {
+    if (backend) {
+        ggml_backend_free(backend);
+    }
 }
 */
 import "C"
@@ -116,7 +125,7 @@ func (g *GGMLBackend) GPUID() int {
 // Close gibt das Backend frei.
 func (g *GGMLBackend) Close() {
 	if g.ptr != nil {
-		C.ggml_backend_free((*C.ggml_backend)(g.ptr))
+		C.free_backend(C.ggml_backend_t(g.ptr))
 		g.ptr = nil
 	}
 }

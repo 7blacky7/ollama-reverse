@@ -47,13 +47,25 @@ type APIModelInfo struct {
 	SHA          string       `json:"sha"`
 	LastModified time.Time    `json:"lastModified"`
 	Private      bool         `json:"private"`
-	Gated        string       `json:"gated"`
+	Gated        interface{}  `json:"gated"` // Kann bool oder string sein (false, "auto", "manual")
 	Pipeline     string       `json:"pipeline_tag"`
 	Tags         []string     `json:"tags"`
 	Downloads    int64        `json:"downloads"`
 	Likes        int64        `json:"likes"`
 	LibraryName  string       `json:"library_name"`
 	Siblings     []APISibling `json:"siblings"`
+}
+
+// IsGated prueft ob das Modell gated ist (authentifizierung erforderlich)
+func (m *APIModelInfo) IsGated() bool {
+	switch v := m.Gated.(type) {
+	case bool:
+		return v
+	case string:
+		return v == "auto" || v == "manual"
+	default:
+		return false
+	}
 }
 
 // APISibling repraesentiert eine Datei im Model-Repository

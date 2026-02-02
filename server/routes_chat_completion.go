@@ -27,20 +27,20 @@ import (
 func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequest, r llm.LlamaServer, m *Model, opts *api.Options, prompt string, images []llm.ImageData, msgs []api.Message, processedTools []api.Tool, checkpointStart, checkpointLoaded time.Time, builtinParser parsers.Parser, thinkingState *thinking.Parser, toolParser *tools.Parser, truncate bool) {
 	defer close(ch)
 
-	type structuredOutputsState int
+	type soStateType int
 	const (
-		structuredOutputsState_None structuredOutputsState = iota
-		structuredOutputsState_ReadyToApply
-		structuredOutputsState_Applying
+		soState_None soStateType = iota
+		soState_ReadyToApply
+		soState_Applying
 	)
 
-	var structuredOutputsState structuredOutputsState = structuredOutputsState_None
+	soState := soState_None
 
 	for {
 		var tb strings.Builder
 
 		currentFormat := req.Format
-		if req.Format != nil && structuredOutputsState == structuredOutputsState_None && ((builtinParser != nil || thinkingState != nil) && slices.Contains(m.Capabilities(), model.CapabilityThinking)) {
+		if req.Format != nil && soState == soState_None && ((builtinParser != nil || thinkingState != nil) && slices.Contains(m.Capabilities(), model.CapabilityThinking)) {
 			currentFormat = nil
 		}
 
@@ -92,8 +92,8 @@ func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequ
 				res.Message.ToolCalls = toolCalls
 
 				tb.WriteString(thinking)
-				if structuredOutputsState == structuredOutputsState_None && req.Format != nil && tb.String() != "" && res.Message.Content != "" {
-					structuredOutputsState = structuredOutputsState_ReadyToApply
+				if soState == soState_None && req.Format != nil && tb.String() != "" && res.Message.Content != "" {
+					soState = soState_ReadyToApply
 					cancel()
 					return
 				}
@@ -114,8 +114,8 @@ func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequ
 				}
 				res.Message.Thinking = thinkingContent
 				tb.WriteString(thinkingContent)
-				if structuredOutputsState == structuredOutputsState_None && req.Format != nil && tb.String() != "" && remainingContent != "" {
-					structuredOutputsState = structuredOutputsState_ReadyToApply
+				if soState == soState_None && req.Format != nil && tb.String() != "" && remainingContent != "" {
+					soState = soState_ReadyToApply
 					res.Message.Content = ""
 					ch <- res
 					cancel()
@@ -155,7 +155,7 @@ func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequ
 			ch <- res
 		})
 		if err != nil {
-			if structuredOutputsState == structuredOutputsState_ReadyToApply && strings.Contains(err.Error(), "context canceled") && c.Request.Context().Err() == nil {
+			if soState == soState_ReadyToApply && strings.Contains(err.Error(), "context canceled") && c.Request.Context().Err() == nil {
 				// ignore
 			} else {
 				var serr api.StatusError
@@ -168,8 +168,8 @@ func (s *Server) runChatCompletion(c *gin.Context, ch chan any, req api.ChatRequ
 			}
 		}
 
-		if structuredOutputsState == structuredOutputsState_ReadyToApply {
-			structuredOutputsState = structuredOutputsState_Applying
+		if soState == soState_ReadyToApply {
+			soState = soState_Applying
 			msg := api.Message{
 				Role:     "assistant",
 				Thinking: tb.String(),

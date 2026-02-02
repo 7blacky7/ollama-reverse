@@ -1,4 +1,3 @@
-//go:build vision
 // Package server - Scheduler Request-Verarbeitung
 //
 // Diese Datei enthaelt:

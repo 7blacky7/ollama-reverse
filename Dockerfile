@@ -221,7 +221,7 @@ RUN apt-get update \
     # ONNX Runtime GPU (CUDA 12) herunterladen und installieren
     && curl -fsSL https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}.tgz \
        | tar xz -C /tmp \
-    && cp /tmp/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}/lib/* /usr/lib/ \
+    && cp /tmp/onnxruntime-linux-x64-gpu-${ONNXRUNTIME_VERSION}/lib/*.so* /usr/lib/ \
     && rm -rf /tmp/onnxruntime-linux-x64-gpu-*
 COPY --from=archive /bin /usr/bin
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

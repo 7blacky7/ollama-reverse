@@ -133,30 +133,32 @@ RUN --mount=type=cache,target=/root/.ccache \
         && cmake --build --parallel --preset 'Vulkan' \
         && cmake --install build --component Vulkan --strip --parallel 8
 
-FROM base AS mlx
-ARG CUDA13VERSION=13.0
-RUN dnf install -y cuda-toolkit-${CUDA13VERSION//./-} \
-    && dnf install -y openblas-devel lapack-devel \
-    && dnf install -y libcudnn9-cuda-13 libcudnn9-devel-cuda-13 \
-    && dnf install -y libnccl libnccl-devel
-ENV PATH=/usr/local/cuda-13/bin:$PATH
-ENV BLAS_INCLUDE_DIRS=/usr/include/openblas
-ENV LAPACK_INCLUDE_DIRS=/usr/include/openblas
-ENV CGO_LDFLAGS="-L/usr/local/cuda-13/lib64 -L/usr/local/cuda-13/targets/x86_64-linux/lib/stubs"
-ARG PARALLEL
-WORKDIR /go/src/github.com/ollama/ollama
-COPY CMakeLists.txt CMakePresets.json .
-COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
-COPY x/ml/backend/mlx x/ml/backend/mlx
-COPY go.mod go.sum .
-COPY MLX_VERSION .
-RUN curl -fsSL https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-$(case $(uname -m) in x86_64) echo amd64 ;; aarch64) echo arm64 ;; esac).tar.gz | tar xz -C /usr/local
-ENV PATH=/usr/local/go/bin:$PATH
-RUN go mod download
-RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'MLX CUDA 13' -DBLAS_INCLUDE_DIRS=/usr/include/openblas -DLAPACK_INCLUDE_DIRS=/usr/include/openblas \
-        && cmake --build --parallel ${PARALLEL} --preset 'MLX CUDA 13' \
-        && cmake --install build --component MLX --strip --parallel ${PARALLEL}
+# MLX Stage deaktiviert (fmt library compile error mit GCC 10)
+# MLX ist primär fuer Apple Silicon gedacht, Linux/CUDA Build funktioniert ohne
+# FROM base AS mlx
+# ARG CUDA13VERSION=13.0
+# RUN dnf install -y cuda-toolkit-${CUDA13VERSION//./-} \
+#     && dnf install -y openblas-devel lapack-devel \
+#     && dnf install -y libcudnn9-cuda-13 libcudnn9-devel-cuda-13 \
+#     && dnf install -y libnccl libnccl-devel
+# ENV PATH=/usr/local/cuda-13/bin:$PATH
+# ENV BLAS_INCLUDE_DIRS=/usr/include/openblas
+# ENV LAPACK_INCLUDE_DIRS=/usr/include/openblas
+# ENV CGO_LDFLAGS="-L/usr/local/cuda-13/lib64 -L/usr/local/cuda-13/targets/x86_64-linux/lib/stubs"
+# ARG PARALLEL
+# WORKDIR /go/src/github.com/ollama/ollama
+# COPY CMakeLists.txt CMakePresets.json .
+# COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
+# COPY x/ml/backend/mlx x/ml/backend/mlx
+# COPY go.mod go.sum .
+# COPY MLX_VERSION .
+# RUN curl -fsSL https://golang.org/dl/go$(awk '/^go' { print $2 }' go.mod).linux-$(case $(uname -m) in x86_64) echo amd64 ;; aarch64) echo arm64 ;; esac).tar.gz | tar xz -C /usr/local
+# ENV PATH=/usr/local/go/bin:$PATH
+# RUN go mod download
+# RUN --mount=type=cache,target=/root/.ccache \
+#     cmake --preset 'MLX CUDA 13' -DBLAS_INCLUDE_DIRS=/usr/include/openblas -DLAPACK_INCLUDE_DIRS=/usr/include/openblas \
+#         && cmake --build --parallel ${PARALLEL} --preset 'MLX CUDA 13' \
+#         && cmake --install build --component MLX --strip --parallel ${PARALLEL}
 
 FROM base AS build
 WORKDIR /go/src/github.com/ollama/ollama
@@ -165,23 +167,26 @@ RUN curl -fsSL https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-
 ENV PATH=/usr/local/go/bin:$PATH
 RUN go mod download
 COPY . .
-# Clone mlx-c headers for CGO (version from MLX_VERSION file)
-RUN git clone --depth 1 --branch "$(cat MLX_VERSION)" https://github.com/ml-explore/mlx-c.git build/_deps/mlx-c-src
+# MLX deaktiviert - keine mlx-c headers noetig
+# RUN git clone --depth 1 --branch "$(cat MLX_VERSION)" https://github.com/ml-explore/mlx-c.git build/_deps/mlx-c-src
 ARG GOFLAGS="'-ldflags=-w -s'"
 ENV CGO_ENABLED=1
 ARG CGO_CFLAGS
 ARG CGO_CXXFLAGS
-ENV CGO_CFLAGS="${CGO_CFLAGS} -I/go/src/github.com/ollama/ollama/build/_deps/mlx-c-src"
+# MLX header path entfernt
+ENV CGO_CFLAGS="${CGO_CFLAGS}"
 ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
+# Build ohne -tags mlx (MLX deaktiviert)
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags mlx -trimpath -buildmode=pie -o /bin/ollama .
+    go build -trimpath -buildmode=pie -o /bin/ollama .
 
 FROM --platform=linux/amd64 scratch AS amd64
 # COPY --from=cuda-11 dist/lib/ollama/ /lib/ollama/
 COPY --from=cuda-12 dist/lib/ollama /lib/ollama/
 COPY --from=cuda-13 dist/lib/ollama /lib/ollama/
 COPY --from=vulkan  dist/lib/ollama  /lib/ollama/
-COPY --from=mlx     /go/src/github.com/ollama/ollama/dist/lib/ollama /lib/ollama/
+# MLX deaktiviert
+# COPY --from=mlx     /go/src/github.com/ollama/ollama/dist/lib/ollama /lib/ollama/
 
 FROM --platform=linux/arm64 scratch AS arm64
 # COPY --from=cuda-11 dist/lib/ollama/ /lib/ollama/

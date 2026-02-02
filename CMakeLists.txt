@@ -185,7 +185,8 @@ option(MLX_ENGINE "Enable MLX backend" OFF)
 # ============================================================================
 option(NOMIC_VISION_ENGINE "Enable Nomic Vision Encoder for image embeddings" ON)
 
-if(NOMIC_VISION_ENGINE)
+# Nur bauen wenn Verzeichnis existiert (nicht in allen Docker-Stages vorhanden)
+if(NOMIC_VISION_ENGINE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vision/nomic_cpp/CMakeLists.txt")
     message(STATUS "Building Nomic Vision Encoder...")
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vision/nomic_cpp)
     # Library wird als libnomic.a gebaut, Go CGO erwartet -lnomic
@@ -197,6 +198,8 @@ if(NOMIC_VISION_ENGINE)
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/vision/nomic_cpp/nomic.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ollama COMPONENT Vision
     )
+elseif(NOMIC_VISION_ENGINE)
+    message(STATUS "Nomic Vision Encoder: Verzeichnis nicht gefunden, uebersprungen")
 endif()
 
 if(MLX_ENGINE)

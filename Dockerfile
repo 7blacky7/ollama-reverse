@@ -171,12 +171,15 @@ RUN go mod download
 COPY . .
 # Nomic C++ Library fuer Vision Encoder
 COPY --from=cpu dist/lib/ollama/libnomic.a /usr/lib/
+# GGML Header fuer CGO Vision Backend
+RUN cp -r ml/backend/ggml/ggml/include/* /usr/local/include/ && \
+    cp -r ml/backend/ggml/ggml/src/ggml-cpu/*.h /usr/local/include/ 2>/dev/null || true
 ARG GOFLAGS="'-ldflags=-w -s'"
 ENV CGO_ENABLED=1
 ARG CGO_CFLAGS
 ARG CGO_CXXFLAGS
-ENV CGO_CFLAGS="${CGO_CFLAGS}"
-ENV CGO_CXXFLAGS="${CGO_CXXFLAGS}"
+ENV CGO_CFLAGS="${CGO_CFLAGS} -I/usr/local/include"
+ENV CGO_CXXFLAGS="${CGO_CXXFLAGS} -I/usr/local/include"
 ENV CGO_LDFLAGS="-L/usr/lib -lnomic"
 # Vision Embedding API mit Nomic GGUF Encoder
 RUN --mount=type=cache,target=/root/.cache/go-build \

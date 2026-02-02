@@ -9,10 +9,12 @@
 package backend
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../llama.cpp.upstream/ggml/include
-#cgo LDFLAGS: -L${SRCDIR}/../../build -lggml
+#cgo CFLAGS: -I${SRCDIR}/../../ml/backend/ggml/ggml/include
+#cgo CFLAGS: -I${SRCDIR}/../../ml/backend/ggml/ggml/src/ggml-cpu
+#cgo LDFLAGS: -L${SRCDIR}/../../build -lggml-base
 
 #include "ggml-backend.h"
+#include "ggml-cpu.h"
 
 // Bedingte CUDA/Metal Includes
 #if defined(GGML_USE_CUDA)

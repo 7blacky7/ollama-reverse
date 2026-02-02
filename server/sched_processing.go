@@ -91,7 +91,7 @@ func (s *Scheduler) processPending(ctx context.Context) {
 				}
 
 				// Runner zum Entladen markieren
-				s.expireRunner(runnerToExpire)
+				s.expireRunnerRef(runnerToExpire)
 
 				// Auf Entladen warten
 				slog.Debug("waiting for pending requests to complete and unload to occur", "runner", runnerToExpire)
@@ -179,8 +179,8 @@ func (s *Scheduler) tryLoadNewRunner(ctx context.Context, pending *LlmRequest, m
 	return s.findRunnerToUnload()
 }
 
-// expireRunner markiert einen Runner zum sofortigen Entladen
-func (s *Scheduler) expireRunner(runner *runnerRef) {
+// expireRunnerRef markiert einen Runner zum sofortigen Entladen
+func (s *Scheduler) expireRunnerRef(runner *runnerRef) {
 	runner.refMu.Lock()
 	slog.Debug("resetting model to expire immediately to make room", "runner", runner, "refCount", runner.refCount)
 

@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ollama/ollama/api"
 	"github.com/ollama/ollama/envconfig"
 	"github.com/ollama/ollama/format"
 	"github.com/ollama/ollama/fs/ggml"

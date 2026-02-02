@@ -4,7 +4,7 @@
 // INPUT: HTTP Requests (POST/GET/DELETE) mit Model-IDs und Cache-Parametern
 // OUTPUT: JSON Responses mit Modell-Status, Listen und Cache-Informationen
 // NEBENEFFEKTE: Laedt/Cacht HF-Modelle, modifiziert Cache-Eintraege
-// ABHAENGIGKEITEN: types_vision_hf (intern), encoding/json, net/http, time (stdlib)
+// ABHAENGIGKEITEN: types_vision_hf (intern), huggingface (intern), encoding/json, net/http, time (stdlib)
 // HINWEISE: Cache-Hilfsfunktionen sind in helpers_vision_hf.go ausgelagert
 
 package server
@@ -12,9 +12,12 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/ollama/ollama/huggingface"
 )
 
 // ============================================================================
@@ -69,15 +72,46 @@ func (h *HFVisionHandler) handleLoadHFModel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	modelPath := h.getModelPath(req.ModelID, req.Revision)
+	// Tatsaechlicher Download von HuggingFace
+	slog.Info("Starte HuggingFace Download", "model_id", req.ModelID, "revision", req.Revision)
 
+	revision := req.Revision
+	if revision == "" {
+		revision = "main"
+	}
+
+	// Download mit Progress-Logging
+	downloadOpts := []huggingface.DownloadOption{
+		huggingface.WithDownloadRevision(revision),
+		huggingface.WithDownloadProgress(func(downloaded, total int64) {
+			percent := float64(downloaded) / float64(total) * 100
+			slog.Info("Download-Fortschritt", "model_id", req.ModelID, "percent", fmt.Sprintf("%.1f%%", percent))
+		}),
+	}
+
+	result, err := huggingface.DownloadModel(req.ModelID, downloadOpts...)
+	if err != nil {
+		slog.Error("HuggingFace Download fehlgeschlagen", "model_id", req.ModelID, "error", err)
+		h.writeHFError(w, http.StatusInternalServerError, HFErrorDownloadFailed,
+			fmt.Sprintf("Download fehlgeschlagen: %v", err))
+		return
+	}
+
+	slog.Info("HuggingFace Download erfolgreich",
+		"model_id", req.ModelID,
+		"cache_path", result.CachePath,
+		"total_size", result.TotalSize,
+		"download_time", result.DownloadTime,
+		"files_count", len(result.Files))
+
+	// Cache-Eintrag mit echten Daten aktualisieren
 	h.mu.Lock()
 	h.cachedModels[req.ModelID] = &CachedModel{
 		ModelID:      req.ModelID,
-		Path:         modelPath,
-		SizeBytes:    0,
+		Path:         result.CachePath,
+		SizeBytes:    result.TotalSize,
 		EncoderType:  modelInfo.Type,
-		Revision:     req.Revision,
+		Revision:     revision,
 		CachedAt:     time.Now().Unix(),
 		LastAccessed: time.Now().Unix(),
 	}
@@ -86,11 +120,11 @@ func (h *HFVisionHandler) handleLoadHFModel(w http.ResponseWriter, r *http.Reque
 	response := LoadHFModelResponse{
 		Status:       HFModelStatusLoaded,
 		EncoderType:  modelInfo.Type,
-		ModelPath:    modelPath,
+		ModelPath:    result.CachePath,
 		CacheHit:     false,
 		ModelID:      req.ModelID,
 		EmbeddingDim: modelInfo.EmbeddingDim,
-		Message:      "Modell erfolgreich geladen",
+		Message:      fmt.Sprintf("Modell erfolgreich geladen (%d Dateien, %.2f MB)", len(result.Files), float64(result.TotalSize)/1024/1024),
 	}
 
 	h.writeJSON(w, http.StatusOK, response)
